@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111a24">
+    <title>Bazar Atlas — Tibia character tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css?v=20261023-clean-layout4">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#" aria-label="Bazar Atlas início">
+          <span class="brand-mark">B</span>
+          <span><strong>Bazar Atlas</strong><small>TIBIA CHARACTER TRACKER</small></span>
+        </a>
+
+        <div class="side-label">ESPAÇO DE TRABALHO</div>
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">▦</span>Visão geral</button>
+        <button class="nav-item" data-view="quests"><span class="nav-icon">◉</span>Acessos e quests <span class="nav-count" id="sidebarQuestCount">74</span></button>
+        <button class="nav-item" data-view="sources"><span class="nav-icon">↗</span>Fontes e método</button>
+
+        <div class="side-divider"></div>
+        <div class="side-heading"><span>PERSONAGENS</span><button id="addCharacterSide" class="icon-button" title="Adicionar personagem">+</button></div>
+        <div id="characterList" class="character-list"></div>
+
+        <div class="sidebar-footer">
+          <div class="local-indicator"><span></span>Dados locais no computador</div>
+          <div class="version-label">CATÁLOGO DE ACESSOS · 2026.10</div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar" hidden inert>
+          <a class="bazaar-brand" href="/" aria-label="Bazar Atlas"><span class="brand-mark">B</span><strong>Bazar Atlas</strong></a>
+          <nav class="bazaar-nav" aria-label="Ferramentas do tracker">
+            <button data-view="quests">Acessos e quests <span id="sidebarQuestCount">74</span></button>
+            <button id="monitorOpen">Novos no Bazaar <span class="live-dot"></span></button>
+          </nav>
+          <div class="top-actions">
+            <label class="search-wrap"><span>⌕</span><input id="globalSearch" type="search" placeholder="Search nickname..." autocomplete="off"></label>
+            <button class="button button-secondary button-small" id="importButton" title="Importar ou exportar backups locais">Importar</button>
+            <button class="button button-primary button-small" id="exportButton" title="Exportar personagens e tracker">Exportar</button>
+            <input id="importFile" type="file" accept=".json,application/json" hidden>
+          </div>
+        </header>
+
+        <section id="overviewView" class="view">
+          <section class="bazaar-listing-view" aria-label="Listagem de leilões do Char Bazaar">
+            <div class="listing-type-row">
+              <div class="auction-type-wrap">
+                <button id="auctionTypeButton" class="auction-type-button" aria-expanded="false">Current auctions <span>⌄</span></button>
+                <div id="auctionTypeMenu" class="auction-type-menu" hidden>
+                  <button data-auction-type="current">Current auctions</button>
+                  <button data-auction-type="past">Auction history</button>
+                </div>
+              </div>
+              <div class="listing-state"><span id="listingSourceDot"></span><span id="listingMessage">Consultando o Char Bazaar oficial…</span></div>
+            </div>
+            <div class="database-coverage" id="databaseCoverage" role="status">Carregando banco local…</div>
+              <div class="listing-controls">
+              <button id="filterToggle" class="list-control filter-toggle" aria-label="Open filter drawer" title="Open filter drawer" aria-expanded="false"><span>☷</span><b id="activeFilterCount" hidden>0</b></button>
+              <button id="sortToggle" class="list-control sort-toggle" aria-label="Set the sorting order and criteria" title="Set the sorting order and criteria" aria-expanded="false"><span>AŽ</span><strong id="sortLabel" hidden>Auction End</strong></button>
+              <div class="page-controls">
+                <span id="listingRange">—</span>
+                <button id="firstPage" class="page-arrow" title="Go to first page" aria-label="Primeira página">«</button>
+                <button id="previousPage" class="page-arrow" title="Go to previous page" aria-label="Página anterior">‹</button>
+                <button id="nextPage" class="page-arrow" title="Go to next page" aria-label="Próxima página">›</button>
+                <button id="lastPage" class="page-arrow" title="Go to last page" aria-label="Última página">»</button>
+              </div>
+              <div id="sortMenu" class="sort-menu" hidden>
+                <label class="sort-direction"><input id="sortAscending" type="checkbox"> Descending</label>
+                <label><input type="radio" name="auctionSort" value="end" checked> Auction End</label>
+                <label><input type="radio" name="auctionSort" value="level"> Level</label>
+                <label><input type="radio" name="auctionSort" value="price"> Price</label>
+              </div>
+            </div>
+
+            <aside id="auctionFilterDrawer" class="auction-filter-drawer" hidden aria-label="Filtros do Char Bazaar">
+              <div class="filter-drawer-head"><strong>Filters</strong><button id="closeFilters" class="drawer-close" aria-label="Fechar filtros">×</button></div>
+              <label class="filter-field"><span>Search nickname</span><input id="filterNickname" placeholder="Character name"></label>
+              <label class="filter-check"><input id="filterBidded" type="checkbox"><span>Bidded only</span></label>
+              <fieldset><legend>Vocation</legend><select id="filterVocation"><option value="">All vocations</option><option value="1">None</option><option value="2">Druid</option><option value="3">Knight</option><option value="4">Paladin</option><option value="5">Sorcerer</option><option value="6">Monk</option></select></fieldset>
+              <fieldset><legend>PvP</legend><select id="filterPvp"><option value="">All PvP types</option><option value="1">Optional</option><option value="0">Open</option><option value="3">Retro Open</option><option value="2">Hardcore</option><option value="4">Retro Hardcore</option></select></fieldset>
+              <fieldset><legend>BattlEye</legend><select id="filterBattlEye"><option value="">All BattlEye states</option><option value="1">Initially protected</option><option value="2">Protected</option><option value="3">Not protected</option></select></fieldset>
+              <fieldset><legend>Server location</legend><select id="filterLocation"><option value="">All locations</option><option>EU</option><option>NA</option><option>BR</option><option>OCE</option></select></fieldset>
+              <label class="filter-field"><span>Server</span><input id="filterWorld" list="bazaarWorlds" placeholder="All worlds"><datalist id="bazaarWorlds"></datalist></label>
+              <fieldset><legend>Store items</legend><div class="filter-check-grid">
+                <label class="filter-check"><input data-store-filter="Training Dummy" type="checkbox">Training Dummy</label><label class="filter-check"><input data-store-filter="Charm Expansion" type="checkbox">Charm Expansion</label>
+                <label class="filter-check"><input data-store-filter="Imbuement Shrine" type="checkbox">Imbuement Shrine</label><label class="filter-check"><input data-store-filter="Gold Pouch" type="checkbox">Gold Pouch</label>
+                <label class="filter-check"><input data-store-filter="Prey Slot" type="checkbox">Prey Slot</label><label class="filter-check"><input data-store-filter="Reward Shrine" type="checkbox">Reward Shrine</label>
+                <label class="filter-check"><input data-store-filter="Hirelings" type="checkbox">Hirelings</label><label class="filter-check"><input data-store-filter="Weekly Task Expansion" type="checkbox">Weekly Task Expansion</label>
+                <label class="filter-check"><input data-store-filter="Mailbox" type="checkbox">Mailbox</label><label class="filter-check"><input data-store-filter="Regular World Transfer" type="checkbox">Regular world transfer</label>
+              </div></fieldset>
+              <fieldset><legend>Level range</legend><div class="range-fields"><label>Min <input id="filterLevelMin" type="number" min="0" value="0"></label><label>Max <input id="filterLevelMax" type="number" min="0" value="3000"></label></div></fieldset>
+              <fieldset><legend>Skill range</legend><div class="range-fields"><label>Min <input id="filterSkillMin" type="number" min="0" value="10"></label><label>Max <input id="filterSkillMax" type="number" min="0" value="150"></label></div><div class="filter-check-grid skill-filter-choices"><label class="filter-check"><input data-skill-choice="1" type="checkbox">Magic</label><label class="filter-check"><input data-skill-choice="7" type="checkbox">Distance</label><label class="filter-check"><input data-skill-choice="9" type="checkbox">Club</label><label class="filter-check"><input data-skill-choice="8" type="checkbox">Sword</label><label class="filter-check"><input data-skill-choice="10" type="checkbox">Axe</label><label class="filter-check"><input data-skill-choice="11" type="checkbox">Fist</label><label class="filter-check"><input data-skill-choice="6" type="checkbox">Shield</label><label class="filter-check"><input data-skill-choice="13" type="checkbox">Fishing</label></div><select id="filterSkill"><option value="">Any skill</option><option value="1">Magic</option><option value="7">Distance</option><option value="9">Club</option><option value="8">Sword</option><option value="10">Axe</option><option value="11">Fist</option><option value="6">Shield</option><option value="13">Fishing</option></select></fieldset>
+              <details class="filter-accordion"><summary>Outfits</summary><input data-cosmetic-filter="Outfits" placeholder="Outfit name"></details>
+              <details class="filter-accordion"><summary>Store Outfits</summary><input data-cosmetic-filter="StoreOutfits" placeholder="Store outfit name"></details>
+              <details class="filter-accordion"><summary>Mounts</summary><input data-cosmetic-filter="Mounts" placeholder="Mount name"></details>
+              <details class="filter-accordion"><summary>Store Mounts</summary><input data-cosmetic-filter="StoreMounts" placeholder="Store mount name"></details>
+              <label class="filter-field"><span>Bounty Points</span><input id="filterBountyPoints" type="number" min="0" placeholder="0"></label>
+              <label class="filter-field"><span>Boss Points</span><input id="filterBossPoints" type="number" min="0" placeholder="0"></label>
+              <label class="filter-field"><span>Tibia Coins invested</span><input id="filterTcInvested" type="number" min="0" placeholder="Minimum"></label>
+              <label class="filter-field"><span>Imbuements</span><select id="filterImbuements"><option value="">Any</option><option value="all">All imbuements</option><option value="20">20 or more</option></select></label>
+              <label class="filter-check"><input id="filterAllImbuements" type="checkbox"><span>All imbuements</span></label>
+              <fieldset><legend>Charm points</legend><div class="range-fields"><label>Min <input id="filterCharmMin" type="number" min="0" value="0"></label><label>Max <input id="filterCharmMax" type="number" min="0" value="50000"></label></div></fieldset>
+              <label class="filter-field"><span>Supreme Gems</span><input id="filterGems" placeholder="Any gem"></label>
+              <label class="filter-field"><span>Min Greater Gems</span><input id="filterGreaterGems" type="number" min="0" placeholder="0"></label>
+              <label class="filter-field"><span>Quest</span><select id="filterQuest"><option value="">Any quest</option></select></label>
+              <label class="filter-field"><span>Achievement points</span><input id="filterAchievements" type="number" min="0" placeholder="Minimum"></label>
+              <label class="filter-field"><span>Rare achievements</span><input id="filterRareAchievements" placeholder="Achievement name"></label>
+              <label class="filter-field"><span>Rare items</span><input id="filterRareItems" placeholder="Item name"></label>
+              <label class="filter-check"><input id="filterAllItems" type="checkbox"><span>All items</span></label>
+              <fieldset><legend>Misc</legend><div class="filter-check-grid">
+                <label class="filter-check"><input data-misc-filter="Soul War available" type="checkbox">Soul War available 💀</label><label class="filter-check"><input data-misc-filter="Primal Ordeal available" type="checkbox">Primal Ordeal available 🦖</label>
+                <label class="filter-check"><input data-misc-filter="Rare nicknames" type="checkbox">Rare nicknames</label><label class="filter-check"><input data-misc-filter="Many charms" type="checkbox">Many charms</label>
+                <label class="filter-check"><input data-misc-filter="Many quests" type="checkbox">Many quests</label><label class="filter-check"><input data-misc-filter="Many mounts" type="checkbox">Many mounts</label>
+                <label class="filter-check"><input data-misc-filter="Many store cosmetics" type="checkbox">Many store cosmetics 🛍️</label><label class="filter-check"><input data-misc-filter="Rare mounts" type="checkbox">Rare mounts ✨</label>
+                <label class="filter-check"><input data-misc-filter="Rare outfits" type="checkbox">Rare outfits 💎</label><label class="filter-check"><input data-misc-filter="Secondary skill" type="checkbox">Secondary skill ⚔️</label>
+              </div></fieldset>
+              <div class="filter-drawer-actions"><button id="clearAuctionFilters" class="list-control">Clear all</button><button id="applyAuctionFilters" class="button button-primary button-small">Apply filters</button></div>
+            </aside>
+
+            <div id="auctionGrid" class="auction-grid" aria-live="polite"><div class="listing-loading">Loading auctions…</div></div>
+          </section>
+
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow"><span class="eyebrow-dot"></span>BAZAR INTELLIGENCE</div>
+              <h1>Leia o personagem<br><em>além do level.</em></h1>
+              <p>Compare o snapshot do leilão, os números de progressão e os acessos que realmente abrem hunts e bosses.</p>
+            </div>
+            <div class="intro-actions">
+              <button class="button button-secondary" id="exportButton">Exportar dados <span>↗</span></button>
+              <button class="button button-primary" id="addCharacterHero">＋ Adicionar personagem</button>
+            </div>
+          </div>
+
+          <div id="emptyState" class="empty-state">
+            <div class="empty-art"><span>✦</span><span>⚔</span><span>◈</span></div>
+            <div class="eyebrow">COMECE SUA LISTA</div>
+            <h2>Nenhum personagem salvo ainda</h2>
+            <p>Adicione um personagem do bazar para organizar skills, pontos e acessos. Os dados de quest ficam separados do perfil público.</p>
+            <button class="button button-primary" id="addCharacterEmpty">Adicionar primeiro personagem <span>→</span></button>
+            <div class="empty-hint">Você também pode importar um backup JSON exportado anteriormente.</div>
+          </div>
+
+          <details id="monitorDetails" class="bazaar-monitor-drawer" hidden inert><summary>Daily Bazaar monitor · new auctions <span id="monitorSummaryBadge">Open</span></summary><section id="bazaarMonitorPanel" class="panel bazaar-monitor-panel">
+            <div class="panel-heading">
+              <div><div class="eyebrow">CHAR BAZAAR · MONITORAMENTO</div><h3>Novos personagens</h3></div>
+              <div class="monitor-actions"><button id="bazaarSyncNow" class="button button-primary button-small">Verificar agora</button><button id="bazaarRefresh" class="button button-secondary button-small">Atualizar lista</button></div>
+            </div>
+            <p class="monitor-description">A busca pelo nome importa o snapshot completo. A varredura diária procura o selo “NEW” e horários de início recentes para registrar os novos leilões neste computador.</p>
+            <div id="bazaarMonitorStatus" class="monitor-status">Carregando estado do monitor…</div>
+            <div id="bazaarRecentList" class="bazaar-recent-list"><div class="monitor-empty">Nenhum personagem monitorado ainda.</div></div>
+          </section></details>
+
+          <div id="profileDashboard" hidden>
+            <div class="profile-heading">
+              <div class="profile-identity">
+                <div class="avatar" id="profileAvatar">?</div>
+                <div>
+                  <div class="profile-name-row"><h2 id="profileName">—</h2><span id="profileStatus" class="pill pill-neutral">EM ACOMPANHAMENTO</span></div>
+                  <div class="profile-meta"><span id="profileVocation">Vocação não informada</span><i>·</i><span id="profileWorld">Mundo não informado</span><i>·</i><span id="profileLevel">Level —</span></div>
+                </div>
+              </div>
+              <div class="profile-actions">
+                <a id="auctionLink" class="button button-secondary button-small" href="#" target="_blank" rel="noopener noreferrer" hidden>Ver leilão <span>↗</span></a>
+                <button id="editCharacter" class="button button-secondary button-small">Editar snapshot</button>
+                <button id="deleteCharacter" class="icon-button danger" title="Remover personagem">⌫</button>
+              </div>
+            </div>
+
+            <div class="data-note"><span class="note-icon">i</span><span><strong>Snapshot do Bazaar:</strong> a busca pelo nome carrega quest lines, conquistas, Bestiary, Bosstiary, outfits e montarias publicados no leilão. Gems específicas, TC investidas e destaques qualitativos continuam editáveis. A ficha TibiaData é o estado público atual e pode não corresponder ao momento do leilão.</span><button id="refreshPublicProfile" class="text-button">Atualizar ficha pública ↗</button></div>
+
+            <div class="section-heading">
+              <div><div class="eyebrow">VISÃO DO LEILÃO</div><h2>Métricas do personagem</h2></div>
+              <span class="section-caption">Edite para refletir o snapshot da página do bazar</span>
+            </div>
+            <div class="metric-grid" id="metricGrid"></div>
+            <section class="panel snapshot-extras">
+              <div class="panel-heading"><div><div class="eyebrow">SINAIS DO BAZAR</div><h3>Highlights e expansões</h3></div><span class="panel-tag">PREENCHIMENTO MANUAL</span></div>
+              <label class="extras-label" for="highlightInput">Destaques exibidos no anúncio</label>
+              <input id="highlightInput" class="extras-input" placeholder="Ex.: Soul War disponível, montaria rara, muitos charms">
+              <div id="highlightChips" class="highlight-chips"></div>
+              <div class="feature-row">
+                <label><span>Weekly Task Expansion</span><select data-feature="weeklyTaskExpansion"></select></label>
+                <label><span>Charm Expansion</span><select data-feature="charmExpansion"></select></label>
+                <label><span>Prey Slot <small id="preySlotNote"></small></span><select data-feature="preySlot"></select></label>
+              </div>
+            </section>
+            <section id="officialSnapshotPanel" class="panel official-snapshot-panel" hidden>
+              <details>
+                <summary><span id="officialSnapshotTitle">Snapshot oficial do leilão</span><span>Detalhes importados · abrir</span></summary>
+                <p class="snapshot-description">Conteúdo extraído da página pública oficial do Char Bazaar. O snapshot fica associado a este personagem.</p>
+                <div id="officialSnapshotContent" class="official-snapshot-content"></div>
+              </details>
+            </section>
+
+            <div class="content-grid">
+              <section class="panel skills-panel">
+                <div class="panel-heading"><div><div class="eyebrow">COMBATE</div><h3>Skills</h3></div><span class="panel-tag">SNAPSHOT</span></div>
+                <div class="skills-list" id="skillsList"></div>
+              </section>
+
+              <section class="panel access-summary">
+                <div class="panel-heading"><div><div class="eyebrow">PROGRESSÃO ÚTIL</div><h3>Acessos prioritários</h3></div><button class="text-button" data-open-quests>Ver catálogo →</button></div>
+                <div id="priorityAccessList" class="priority-list"></div>
+                <div class="panel-foot"><span id="accessSummaryText">—</span><button class="text-button" data-open-quests>Revisar acessos ↗</button></div>
+              </section>
+            </div>
+
+            <div class="section-heading quest-section-heading">
+              <div><div class="eyebrow">QUESTS DE ACESSO E BOSSES</div><h2>O que este personagem libera</h2></div>
+              <button class="button button-secondary button-small" data-open-quests>Ver todos os acessos <span>→</span></button>
+            </div>
+            <div id="featuredQuestGrid" class="featured-quest-grid"></div>
+          </div>
+        </section>
+
+        <section id="questsView" class="view" hidden>
+          <div class="page-title-row">
+            <div><div class="eyebrow"><span class="eyebrow-dot"></span>UTILITARY / ACCESS / BOSSES</div><h1>Quests que <em>abrem possibilidades.</em></h1><p>Lista base do Exevo Pan, ampliada com acessos a hunts e bosses de equipamentos relevantes.</p></div>
+            <div class="catalog-total"><strong id="catalogTotal">74</strong><span>QUESTS<br>NO CATÁLOGO</span></div>
+          </div>
+          <div id="questCharacterNotice" class="data-note" hidden></div>
+          <div class="filter-bar">
+            <label class="filter-search"><span>⌕</span><input id="questSearch" type="search" placeholder="Buscar quest, local ou boss..."></label>
+            <div class="filter-chips" id="filterChips">
+              <button class="filter-chip active" data-filter="all">Todos</button>
+              <button class="filter-chip" data-filter="new">Novos</button>
+              <button class="filter-chip" data-filter="boss">Bosses</button>
+              <button class="filter-chip" data-filter="hunt">Hunts</button>
+              <button class="filter-chip" data-filter="qol">Qualidade de vida</button>
+              <button class="filter-chip" data-filter="pending">Faltam / conclusão parcial</button>
+            </div>
+          </div>
+          <div class="catalog-summary"><span id="catalogSummary">Selecione ou adicione um personagem para registrar os acessos.</span><button id="catalogSort" class="text-button">Prioridade ↓</button></div>
+          <div id="questCatalog" class="quest-catalog"></div>
+        </section>
+
+        <section id="sourcesView" class="view" hidden>
+          <div class="page-title-row">
+            <div><div class="eyebrow"><span class="eyebrow-dot"></span>TRANSPARÊNCIA</div><h1>Fontes e <em>método.</em></h1><p>O tracker separa fatos públicos, dados de leilão e inferências sobre acesso.</p></div>
+          </div>
+          <div class="method-grid">
+            <article class="panel method-card"><span class="method-number">01</span><h3>Resumo do personagem</h3><p>A organização segue a leitura compacta do Exevo Pan para skills, Animus Masteries, charm points, imbuements, boss points, quest lines, expansões, gems e destaques do leilão. O Atlas acrescenta checkpoints, evidências por fonte e status editável de progresso.</p><a href="https://www.exevopan.com/" target="_blank" rel="noopener noreferrer">Abrir Exevo Pan ↗</a></article>
+            <article class="panel method-card"><span class="method-number">02</span><h3>Ficha pública x snapshot</h3><p>A ficha pública via TibiaData preenche nome, level, vocação, mundo e pontos de achievements. Ela descreve o estado atual público; se não houver leilão ativo, skills detalhadas, quest lines e demais evidências do Bazaar não podem ser atualizadas por essa API.</p><a href="https://docs.tibiadata.com/" target="_blank" rel="noopener noreferrer">Documentação TibiaData ↗</a></article>
+            <article class="panel method-card"><span class="method-number">03</span><h3>Conclusão e acesso são evidências diferentes</h3><p>O status concluído exige uma quest line do Bazaar ou um marcador de achievement que o Exevo Pan associa explicitamente àquela quest. Conquistas não finais e outfits registram progresso; boss kills, Bestiary, Bosstiary e montarias são indícios históricos fracos, pois podem anteceder um rook ou vir de outro jogador.</p><a href="https://www.tibia.com/support/?entryid=198&subtopic=gethelp" target="_blank" rel="noopener noreferrer">FAQ oficial do Char Bazaar ↗</a></article>
+            <article class="panel method-card"><span class="method-number">04</span><h3>Lista completa do guia</h3><p>O catálogo acompanha as quests e ramos de acesso, QoL e bosses da megalista. Cada linha traz o desbloqueio descrito no guia e uma regra conservadora: quest line exata para conclusão, marcadores conhecidos para progresso, mortes/montarias como pistas fracas.</p><a href="https://www.reddit.com/r/TibiaMMO/comments/1ncwctm/most_important_quests_access_quality_of_life_qol/" target="_blank" rel="noopener noreferrer">Abrir megalista do Reddit ↗</a></article>
+          </div>
+          <section class="panel source-list-panel">
+            <div class="panel-heading"><div><div class="eyebrow">REGRAS DE LEITURA</div><h3>O que significa cada status</h3></div></div>
+            <div class="legend-row"><span class="status-dot status-unknown"></span><div><strong>Não verificado</strong><p>Nenhuma evidência positiva apareceu nas entradas visíveis. Isso não prova que a quest ou acesso esteja ausente; listas recolhidas e kills antigas podem não aparecer.</p></div></div>
+            <div class="legend-row"><span class="status-dot status-incomplete"></span><div><strong>Falta concluir</strong><p>Confirmação manual de que a linha de quest não foi concluída.</p></div></div>
+            <div class="legend-row"><span class="status-dot status-partial"></span><div><strong>Progresso parcial</strong><p>Uma conquista de etapa ou outfit associado apareceu no snapshot. Bosstiary, Bestiary e montarias ficam separados como indícios fracos e não elevam o status.</p></div></div>
+            <div class="legend-row"><span class="status-dot status-unknown"></span><div><strong>Indícios históricos fracos</strong><p>Bestiary e Bosstiary registram kills antigas que podem anteceder um rook; montarias podem vir de itens comprados. Essas pistas aparecem no card, mas não alteram status nem confirmam acesso atual.</p></div></div>
+            <div class="legend-row"><span class="status-dot status-complete"></span><div><strong>Concluída</strong><p>Quest line oficial concluída, ou marcador de conquista explicitamente mapeado pelo Exevo Pan. Para quests sem marcador nessa lista, só a quest line do Bazaar conclui automaticamente.</p></div></div>
+            <div class="legend-row"><span class="status-dot status-unknown"></span><div><strong>Checkbox de acesso</strong><p>Marque somente se o detalhe do leilão, o personagem ou uma confirmação dentro do jogo provar aquele subacesso.</p></div></div>
+          </section>
+          <div class="disclaimer"><strong>Importante:</strong> o cruzamento usa nomes visíveis no snapshot oficial e não transforma ausência de registro em prova negativa. Bestiary e Bosstiary são históricos e persistem após rook; montarias podem ser adquiridas de outros jogadores. Todos são indícios fracos e não alteram status. Acessos temporários, escolhas de grupo, taints e tentativas prontas continuam exigindo checkpoints próprios. O catálogo cobre as quests rastreáveis da megalista do Reddit; onde o Bazaar não expõe um marcador confiável, a ficha permanece não verificada até confirmação manual.</div>
+        </section>
+
+      </main>
+    </div>
+
+    <dialog id="characterDialog" class="character-dialog">
+      <form id="characterForm" method="dialog">
+        <div class="dialog-heading"><div><div class="eyebrow">NOVO SNAPSHOT</div><h2 id="dialogTitle">Adicionar personagem</h2></div><button type="button" class="icon-button" id="closeDialog" aria-label="Fechar">×</button></div>
+        <label class="field-label" for="charName">Nome do personagem <span>*</span></label>
+        <div class="inline-field"><input id="charName" required placeholder="Ex.: Knight of Tibia"><button type="button" class="button button-primary button-small" id="searchBazaarCharacter">Buscar no Bazaar ↗</button></div>
+        <div id="lookupMessage" class="field-hint">Digite o nome para localizar o leilão atual e importar os dados oficiais automaticamente. A ficha TibiaData fica disponível como alternativa.</div>
+        <div class="inline-field"><button type="button" class="button button-secondary button-small" id="lookupCharacter">Buscar apenas ficha pública via TibiaData ↗</button></div>
+        <input id="auctionUrl" type="hidden">
+        <div class="form-grid">
+          <label><span>Level</span><input id="fieldLevel" type="number" min="0" placeholder="—"></label>
+          <label><span>Vocação</span><input id="fieldVocation" placeholder="—"></label>
+          <label><span>Mundo</span><input id="fieldWorld" placeholder="—"></label>
+          <label><span>Achievement points</span><input id="fieldAchievements" type="number" min="0" placeholder="—"></label>
+        </div>
+        <div class="dialog-note"><span>i</span>O importador lê a página pública do leilão. Para usá-lo, abra este app pelo servidor local indicado no README.</div>
+        <div class="dialog-actions"><button type="button" class="button button-secondary" id="cancelDialog">Cancelar</button><button type="submit" class="button button-primary">Salvar personagem <span>→</span></button></div>
+      </form>
+    </dialog>
+    <dialog id="auctionDetailsDialog" class="auction-details-dialog">
+      <div class="auction-detail-shell">
+        <div class="auction-detail-top"><span class="detail-kicker">CHAR BAZAAR · CHARACTER DETAILS</span><button id="closeAuctionDetails" class="drawer-close" aria-label="Fechar detalhes">×</button></div>
+        <div id="auctionDetailsBody" class="auction-details-body"><div class="listing-loading">Carregando snapshot oficial do leilão…</div></div>
+      </div>
+    </dialog>
+    <dialog id="auctionToolDialog" class="auction-tool-dialog"><header><h2 id="auctionToolTitle"></h2><button id="closeAuctionTool" aria-label="Close dialog">×</button></header><div id="auctionToolBody"></div></dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="./pages-api.js?v=1"></script>
+    <script src="./quests.js?v=20261021-base-plus15"></script>
+    <script src="./bazaar-icons.js?v=20261021-ui-corrections"></script>
+    <script src="./app.js?v=20261023-twelve-cards5"></script>
+  </body>
+</html>

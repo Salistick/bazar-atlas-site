@@ -1,0 +1,23 @@
+{
+  "createdAt": 1792788780.494556,
+  "databases": {
+    "bazar_atlas": {
+      "file": "bazar_atlas.sqlite3.gz",
+      "bytes": 35968627,
+      "uncompressedBytes": 169693184,
+      "sha256": "67a8d0147cb7f464bb18415618fb56ad09e62317349e0bcb3ecde36bb0a4b1a5"
+    },
+    "acervo_bazar": {
+      "file": "acervo_bazar.sqlite3.gz",
+      "bytes": 42791468,
+      "uncompressedBytes": 237760512,
+      "sha256": "2d862228012c8306528209489bb11a0b2124d7d653be64f95d2c50b64009c253"
+    },
+    "enrichment": {
+      "file": "enrichment.sqlite3.gz",
+      "bytes": 2223138,
+      "uncompressedBytes": 10588160,
+      "sha256": "67917f6faa491346f4951ef5304e93297359fab1a63db23d3c66c5862288c35a"
+    }
+  }
+}

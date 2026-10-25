@@ -3,11 +3,16 @@
   'use strict';
   const nativeFetch=window.fetch.bind(window);
   const base=new URL('./',document.baseURI);
+  const buildId=window.BAZAAR_BUILD_ID || '';
+  const versioned=url=>{
+    if(buildId) url.searchParams.set('v',buildId);
+    return url;
+  };
   const cache=new Map();
   window.BAZAAR_STATIC=true;
   async function data(name) {
     if(!cache.has(name)) cache.set(name,(async()=>{
-      const response=await nativeFetch(new URL('site-data/'+name+'.json.gz',base));
+      const response=await nativeFetch(versioned(new URL('site-data/'+name+'.json.gz',base)));
       if(!response.ok) throw new Error('Registro indisponível na base publicada.');
       const stream=response.body.pipeThrough(new DecompressionStream('gzip'));
       return new Response(stream).json();
@@ -38,7 +43,7 @@
     if(url.origin!==base.origin) return nativeFetch(input,options);
     if(!url.pathname.startsWith('/api/bazaar/')) {
       // Existing root-relative catalog requests must honor a project Pages path.
-      if(typeof input==='string' && input.startsWith('/') && !input.startsWith('//')) return nativeFetch(new URL(input.slice(1),base),options);
+      if(typeof input==='string' && input.startsWith('/') && !input.startsWith('//')) return nativeFetch(versioned(new URL(input.slice(1),base)),options);
       return nativeFetch(input,options);
     }
     const action=url.pathname.slice('/api/bazaar/'.length), id=url.searchParams.get('auctionid') || '';

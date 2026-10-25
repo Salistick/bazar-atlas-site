@@ -1943,6 +1943,12 @@
     }, 40);
   }
 
+  function resetAuctionSortDefaults() {
+    byId('sortAscending').checked = listingType === 'past';
+    document.querySelector('input[name="auctionSort"][value="end"]').checked = true;
+    byId('sortLabel').textContent = 'Auction End';
+  }
+
   function installEvents() {
     function positionHoverPanel(event) {
       const anchor = event.target.closest('.bazaar-hover-anchor, .quest-hover-wrap');
@@ -1978,6 +1984,7 @@
       const option = event.target.closest("[data-auction-type]");
       if (!option) return;
       listingType = option.dataset.auctionType;
+      resetAuctionSortDefaults();
       listingPage = 1;
       byId("auctionTypeButton").innerHTML = escapeHtml(listingType === "current" ? "Current auctions" : "Auction history") + " <span>⌄</span>";
       byId("auctionTypeMenu").hidden = true;
@@ -2011,9 +2018,7 @@
       ["filterSkillMax"].forEach((id) => { byId(id).value = "150"; });
       ["filterCharmMax"].forEach((id) => { byId(id).value = "50000"; });
       ["filterVocation", "filterPvp", "filterBattlEye", "filterLocation", "filterSkill", "filterImbuements", "filterQuest"].forEach((id) => { byId(id).value = ""; });
-      byId("sortAscending").checked = false;
-      document.querySelector('input[name="auctionSort"][value="end"]').checked = true;
-      byId("sortLabel").textContent = "Auction End";
+      resetAuctionSortDefaults();
       listingFilters = {};
       document.querySelectorAll('.cosmetic-filter-tile').forEach(tile=>{tile.hidden=false;const image=tile.querySelector('img');image.src=image.src.replace('/female/','/male/');});
       renderActiveFilters();

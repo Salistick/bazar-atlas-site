@@ -483,9 +483,41 @@
       (card && card.id && profile.auctionId === String(card.id)) ||
       (card && profile.name.toLowerCase() === String(card.name || "").toLowerCase())
     ) || null;
-    const profile = saved ? normalizeProfile(saved) : blankProfile(card && card.name);
+    // Historical unlocks belong to this auction, not to a later saved character.
+    const historical = isHistoricalAuction(card, snapshot);
+    const profile = saved && !historical ? normalizeProfile(saved) : blankProfile(card && card.name);
     if (snapshot) applyOfficialAuction(profile, snapshot);
+    profile._historicalPresentation = historical;
     return { profile: profile, saved: saved };
+  }
+
+  function isHistoricalAuction(card, snapshot) {
+    return snapshot?.auction?.type === 'past' || card?.type === 'past' || card?.market === 'past' || listingType === 'past';
+  }
+
+  function displayAuctionMetrics(card, snapshot) {
+    const source = snapshot?.metrics || {};
+    if (!isHistoricalAuction(card, snapshot)) return source;
+    // Presentation defaults only. Raw unknown values remain unknown in storage
+    // and never become evidence of an official unlock or sale.
+    const metrics = {...source};
+    ['animusMasteries','totalCharmPoints','imbuementsUnlocked','bossPoints','bountyPoints',
+      'achievementPoints','hirelings','hirelingJobs','hirelingOutfits','tcInvested','preySlots'].forEach(key => {
+      if (metrics[key] === null || metrics[key] === undefined || metrics[key] === '') metrics[key] = 0;
+    });
+    metrics.gemsByGrade = Object.fromEntries(['lesser','regular','greater'].map(key => [key, source.gemsByGrade?.[key] ?? 0]));
+    return metrics;
+  }
+
+  function historicalListingSnapshot(card) {
+    return {
+      character: {name:card.name, level:card.level, vocation:card.vocation, world:card.world, ...(card.character || {})},
+      auction: {id:String(card.id), type:'past', end:card.end, url:card.url},
+      displayCard: {...card}, metrics:card.metrics || {}, skills:card.skills || {},
+      sections:card.sections || {}, cosmetics:card.cosmetics || {},
+      featureEntries:card.featureEntries || [], completedQuestLines:card.completedQuestLines || [],
+      source:card.source, sourceDetails:card.sourceDetails || [], _historyDisplayOnly:true
+    };
   }
 
   function listCardSkill(snapshot, key) {
@@ -518,10 +550,13 @@
   }
 
   function displayQuestStatus(profile, quest) {
-    if (!quest.displayStage) return questFlag(profile, quest.id).status;
+    if (!quest.displayStage) {
+      const status = questFlag(profile, quest.id).status;
+      return status === 'unknown' && profile?._historicalPresentation ? 'incomplete' : status;
+    }
     const snapshot = profile?.auctionSnapshot;
-    if (!snapshot) return "unknown";
-    return matchedEvidence(snapshot, "achievement", quest.displayStage.achievements, "complete").length ? "complete" : "unknown";
+    if (!snapshot) return profile?._historicalPresentation ? 'incomplete' : 'unknown';
+    return matchedEvidence(snapshot, "achievement", quest.displayStage.achievements, "complete").length ? "complete" : profile?._historicalPresentation ? 'incomplete' : 'unknown';
   }
 
   function questOrderDescription(quest) {
@@ -546,14 +581,15 @@
     return '<div class="detail-quest-summary"><strong>' + summary.complete + ' com acesso</strong><span>' + summary.partial + ' parciais · ' + CATALOG.length + ' quests importantes rastreáveis</span></div>' +
       '<div class="detail-quest-groups">' + [["utility", "Utilitary"], ["access", "Access"], ["boss", "Bosses"]].map(([group, label]) => '<section><h3>' + label + '</h3><div class="detail-quest-list">' + displayQuests(group).map((quest) => {
         const status = displayQuestStatus(profile, quest);
-        const label = status === "complete" ? "Acesso" : status === "partial" ? "Parcial" : "—";
+        const label = status === "complete" ? "Acesso" : status === "partial" ? "Parcial" : status === "incomplete" ? "Não feito" : "—";
         return '<div class="detail-quest-row ' + (status === "complete" ? "is-complete" : status === "partial" ? "is-partial" : "") + '" title="' +
           escapeHtml(STATUS_LABELS[status] + " · " + questOrderDescription(quest)) + '"><span>' + escapeHtml(quest.name.replace(/ Quest$/, "")) + '</span><b>' + label + '</b></div>';
       }).join("") + '</div></section>').join("") + '</div>';
   }
 
   function listingSnapshot(card) {
-    return card && (card.snapshot || (state.profiles.find((profile) => profile.auctionId === String(card.id)) || {}).auctionSnapshot) || null;
+    const snapshot = card && (card.snapshot || (state.profiles.find((profile) => profile.auctionId === String(card.id)) || {}).auctionSnapshot);
+    return snapshot || (card && isHistoricalAuction(card, null) ? historicalListingSnapshot(card) : null);
   }
 
   let snapshotFiltersActive=true;
@@ -802,7 +838,7 @@
     const snapshot = listingSnapshot(card);
     const pair = profileForAuction(card, snapshot);
     const profile = pair.profile;
-    const metrics = snapshot && snapshot.metrics || {};
+    const metrics = displayAuctionMetrics(card, snapshot);
     const accessRows = accessRowSummary(profile);
     const completedCount = accessRows.complete;
     const tracked = latestStatus(profile);
@@ -813,8 +849,9 @@
     const outfit = officialAsset(card.outfitImage);
     const favorite = favoriteAuctionIds.includes(String(card.id));
     const resultLabels={sold:'Paid · transfer completed',paid_pending_transfer:'Paid · awaiting server save',waiting_payment:'Awaiting payment',processing:'Processing · payment not confirmed',no_bid:'No bids · not sold',cancelled:'Cancelled · not sold',pending:'Awaiting result confirmation'};
-    const resultBadge=listingType==='past'?'<span class="auction-result-status '+(card.paymentConfirmed?'result-paid':card.finalResultPending?'result-pending':'result-unsold')+'" title="'+escapeHtml(card.sourceStatus || 'Only confirmed payments enter Estimate price')+'">'+escapeHtml(resultLabels[card.resultStatus] || resultLabels.pending)+'</span>':'';
-    const bid = listingType==='past'?(card.currentBid?"WINNING BID":card.finalResultPending?"RESULT PENDING":"NO SALE"):card.currentBid ? "CURRENT BID" : "MINIMUM BID";
+    const confirmedUnsold = ['no_bid','cancelled'].includes(card.resultStatus);
+    const resultBadge=listingType==='past'?'<span class="auction-result-status '+(card.paymentConfirmed?'result-paid':confirmedUnsold?'result-unsold':'result-pending')+'" title="'+escapeHtml(card.sourceStatus || 'Only confirmed payments enter Estimate price')+'">'+escapeHtml(resultLabels[card.resultStatus] || resultLabels.pending)+'</span>':'';
+    const bid = listingType==='past'?(card.currentBid?"WINNING BID":confirmedUnsold?"NO SALE":"RESULT PENDING"):card.currentBid ? "CURRENT BID" : "MINIMUM BID";
     const bidValue = listingType==='past'?(card.currentBid || "—"):card.currentBid || card.minimumBid || "—";
     const skillRows = [
       ["magic", "Magic"], ["club", "Club"], ["fist", "Fist"], ["sword", "Sword"],
@@ -857,11 +894,11 @@
       '<button data-auction-action="skills" data-id="' + escapeHtml(card.id) + '">' + cardIcon('skills') + '<span>Estimate skills</span></button>' +
       '<button data-auction-action="price" data-id="' + escapeHtml(card.id) + '">' + cardIcon('price') + '<span>Estimate price</span></button></div></div></div>' +
       '<div class="auction-meta-grid"><div class="auction-meta-box" title="Server and transfer availability"><small>SERVER</small><strong><span class="world-flag">' + (['BR','NA','EU','OCE'].includes(card.region) ? '<img src="https://assets.service-exevopan.com/public/assets/' + card.region.toLowerCase() + '-flag.png" alt="' + card.region + '">' : '🌐') + '</span>' + escapeHtml(card.world || "—") +
-      '</strong><span class="transfer-icon" title="' + escapeHtml(snapshot?.transfer || card.transfer || "Transfer information is not available") + '">' + cardIcon(transferIsAvailable(snapshot,card) === false ? 'transfer' : 'transferOpen') + '</span></div>' +
+      '</strong><span class="transfer-icon" title="' + escapeHtml(snapshot?.transfer || card.transfer || "Transfer information is not available") + '">' + cardIcon(transferIsAvailable(snapshot,card) === false || (isHistoricalAuction(card,snapshot) && transferIsAvailable(snapshot,card) !== true) ? 'transfer' : 'transferOpen') + '</span></div>' +
       '<div class="auction-meta-box"><small>PVP</small><strong><img class="battleye-sprite" src="https://assets.service-exevopan.com/public/assets/' + (card.battleyeColor === 'yellow' ? 'yellow' : 'green') + 'battleye.png" alt="">' + escapeHtml(card.pvpType || "—") + '</strong></div>' +
       '<div class="auction-meta-box"><small>AUCTION END</small><strong data-auction-end="' + escapeHtml(card.end) + '">' + auctionEndMarkup(card.end) + '</strong></div>' +
       '<div class="auction-meta-box"><small>' + bid + '</small><strong><img class="coin-sprite" src="https://assets.service-exevopan.com/public/assets/tibiacoin.png" alt="TC">' + escapeHtml(formatAuctionNumber(bidValue)) + '</strong></div></div>' +
-      '<div class="auction-items-row">' + itemSquares.join("") + (snapshot ? "" : '<span class="loading-detail-label">Snapshot unavailable</span>') + '</div>' +
+      '<div class="auction-items-row">' + itemSquares.join("") + (snapshot || isHistoricalAuction(card,snapshot) ? "" : '<span class="loading-detail-label">Snapshot unavailable</span>') + '</div>' +
       '<div class="auction-skills-grid">' + skillRows + '</div>' +
       '<div class="auction-facts-grid"><div class="auction-facts-left">' +
       '<span title="Animus Masteries unlocked">' + cardIcon('masteries') + '<span>Animus Masteries: <b>' + escapeHtml(formatAuctionNumber(metrics.animusMasteries ?? "—")) + '</b></span></span>' +
@@ -1050,6 +1087,9 @@
   async function fetchAuctionDetail(auctionId) {
     let card = auctionListings.find((item) => String(item.id) === String(auctionId));
     if (card && listingSnapshot(card) && !listingSnapshot(card)._staticSummary) return listingSnapshot(card);
+    // Archive listing-only records can still be opened locally. Opening the
+    // history must not start an official-site enrichment request implicitly.
+    if (card && isHistoricalAuction(card, listingSnapshot(card)) && !listingSnapshot(card)) return historicalListingSnapshot(card);
     const response = await fetch("/api/bazaar/detail?auctionid=" + encodeURIComponent(auctionId) + "&type=" + listingType, { headers: { Accept: "application/json" } });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Não foi possível abrir o snapshot oficial.");
@@ -1085,8 +1125,8 @@
   function renderAuctionDetails(snapshot, auctionId) {
     const previousScroll = byId('auctionDetailsBody').querySelector('.auction-card')?.dataset.auctionCard === String(auctionId) ? byId('auctionDetailsBody').querySelector('.detail-scroll-region')?.scrollTop || 0 : 0;
     activeDetailSnapshot = snapshot;
-    const character = snapshot.character || {}, metrics = snapshot.metrics || {};
     const sourceCard = auctionListings.find(item => String(item.id) === String(auctionId));
+    const character = snapshot.character || {}, metrics = displayAuctionMetrics(sourceCard, snapshot);
     const card = {...(snapshot.displayCard || {}), ...(sourceCard || {}), id:auctionId, ...character,
       end:sourceCard?.end || snapshot.displayCard?.end || snapshot.auction?.end,
       currentBid:sourceCard?.currentBid ?? snapshot.displayCard?.currentBid ?? snapshot.auction?.currentBid,
@@ -1271,7 +1311,7 @@
       const response=await fetch('/api/bazaar/reminders');if(!response.ok)return;
       const data=await response.json(), local=JSON.parse(localStorage.getItem('bazar-atlas-reminders')||'{}');
       const reminders={...local,...data.reminders};
-      for(const [id,reminder] of Object.entries(data.reminders || {})){reminder.serverManaged=result.mode!=='browser';if(!notifiedAuctionIds.includes(id))notifiedAuctionIds.push(id);}
+      for(const [id,reminder] of Object.entries(data.reminders || {})){reminder.serverManaged=data.mode!=='browser';if(!notifiedAuctionIds.includes(id))notifiedAuctionIds.push(id);}
       localStorage.setItem('bazar-atlas-notify',JSON.stringify(notifiedAuctionIds));
       localStorage.setItem('bazar-atlas-reminders',JSON.stringify(reminders));
       if(Object.keys(local).some(id=>!data.reminders?.[id]))await saveServerReminders();

@@ -1055,7 +1055,7 @@
       const advanced=true;
       const cacheKey='database:'+listingType;
       let cached=completeIndexCache.get(cacheKey), index;
-      if(cached&&Date.now()-cached.savedAt<300000)index=cached.index;
+      if(cached&&Date.now()-cached.savedAt<300000&&(!cached.index.nextExpiryAt||Date.now()<cached.index.nextExpiryAt))index=cached.index;
       else {
         const response=await fetch('/api/bazaar/filter-index?type='+listingType,{headers:{Accept:'application/json'}});
         index=await response.json();if(!response.ok)throw new Error(index.error || 'Unable to read the local Bazaar database.');

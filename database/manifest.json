@@ -1,10 +1,10 @@
 {
-  "createdAt": 1792961735.2568471,
+  "createdAt": 1792961985.9154754,
   "databases": {
     "bazar_atlas": {
-      "bytes": 22615256,
+      "bytes": 22615262,
       "uncompressedBytes": 104521728,
-      "sha256": "5c39c6039ed4808745f9be08b68017e95ece1412439eab0210d6ae16615ea1e9",
+      "sha256": "7b8572649b4826eb8e5f0cb7c754922be9ed553f5ab17068e222dbb12c206545",
       "file": "bazar_atlas.sqlite3.gz"
     },
     "daily_history": {

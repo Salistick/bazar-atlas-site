@@ -443,9 +443,11 @@
     const deadline = auctionDeadline(value);
     if (!Number.isFinite(deadline)) return escapeHtml(value || '—');
     const date = new Date(deadline);
-    const calendar = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric'}).format(date);
-    const clock = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZoneName:'short'}).format(date);
-    return '<span class="auction-history-end"><span>' + escapeHtml(calendar) + '</span><span>' + escapeHtml(clock) + '</span></span>';
+    const parts = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Berlin',day:'numeric',month:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hourCycle:'h23'}).formatToParts(date);
+    const part = type => parts.find(value => value.type === type).value;
+    const month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(part('month'))-1];
+    const label = Number(part('day')) + ' ' + month + ' ' + part('year') + ', ' + Number(part('hour')) + ':' + part('minute');
+    return '<span class="auction-history-end">' + escapeHtml(label) + '</span>';
   }
 
   function auctionEndMarkup(value, historical = false) {

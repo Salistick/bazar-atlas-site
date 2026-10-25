@@ -1,58 +1,17 @@
 {
-  "createdAt": 1792940961.1253881,
+  "createdAt": 1792943273.3587997,
   "databases": {
     "bazar_atlas": {
-      "bytes": 99266090,
-      "uncompressedBytes": 547835904,
-      "sha256": "929c367b4f4e9706458949feec1dc7d2f5c8717f256ea5a22d9865ea08c225e6",
-      "format": "concatenated-gzip-parts",
-      "parts": [
-        {
-          "file": "bazar_atlas.sqlite3.gz.part001",
-          "bytes": 47185920,
-          "sha256": "3c4e7bf8bd0fa2772a263507a7df3e6c90572bd413bd8ab263f53cbede576a80"
-        },
-        {
-          "file": "bazar_atlas.sqlite3.gz.part002",
-          "bytes": 47185920,
-          "sha256": "37eed4c6dd96db645ca6cc1bb1054a4adbd211162446543cbe101d5a9629b86e"
-        },
-        {
-          "file": "bazar_atlas.sqlite3.gz.part003",
-          "bytes": 4894250,
-          "sha256": "895b3fd3e48de84a73c82f3f7c850e7426c4775bcba6e48fe03fb541c94f577b"
-        }
-      ]
+      "bytes": 495999,
+      "uncompressedBytes": 4026368,
+      "sha256": "65a74e5c57942a570a57c41c74fd4e88478f7912e5dbf1e1a76d65e687d79daa",
+      "file": "bazar_atlas.sqlite3.gz"
     },
-    "acervo_bazar": {
-      "bytes": 65840851,
-      "uncompressedBytes": 375488512,
-      "sha256": "eee2460b0bd08a0e57f51a56c9bf4061561040becad9e84d3c1a393164a4a966",
-      "format": "concatenated-gzip-parts",
-      "parts": [
-        {
-          "file": "acervo_bazar.sqlite3.gz.part001",
-          "bytes": 47185920,
-          "sha256": "79db87e77002d3b3128c0c17b0f2e5b2871be7c3a4fdd3209a97c80524638839"
-        },
-        {
-          "file": "acervo_bazar.sqlite3.gz.part002",
-          "bytes": 18654931,
-          "sha256": "35495e42033f1401ceadd78cea3f8b6bdb89f30769b3bdc7c72c41c42925ed8d"
-        }
-      ]
-    },
-    "enrichment": {
-      "bytes": 4071970,
-      "uncompressedBytes": 18370560,
-      "sha256": "7b2feb427b7562372fb328e166c978505088ea80b56205cbe2b7089a8f694d48",
-      "file": "enrichment.sqlite3.gz"
-    },
-    "official_enrichment": {
-      "bytes": 1563460,
-      "uncompressedBytes": 8122368,
-      "sha256": "9a4ec414bf4cf05efb5721767704356b9713079fd75665e0e6ff9d387ec0ef15",
-      "file": "official_enrichment.sqlite3.gz"
+    "daily_history": {
+      "bytes": 1468,
+      "uncompressedBytes": 32768,
+      "sha256": "ae079d7fe16b4fd4cab4cdbee827fe6eb18d5eae3637e736d77c0c15c579439d",
+      "file": "daily_history.sqlite3.gz"
     }
   }
 }

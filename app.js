@@ -439,7 +439,17 @@
     return Date.parse(match[3] + '-' + String(months.indexOf(match[1]) + 1).padStart(2,'0') + '-' + match[2].padStart(2,'0') + 'T' + match[4].padStart(5,'0') + ':00' + (match[5] === 'CEST' ? '+02:00' : '+01:00'));
   }
 
-  function auctionEndMarkup(value) {
+  function historicalAuctionEndMarkup(value) {
+    const deadline = auctionDeadline(value);
+    if (!Number.isFinite(deadline)) return escapeHtml(value || '—');
+    const date = new Date(deadline);
+    const calendar = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric'}).format(date);
+    const clock = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZoneName:'short'}).format(date);
+    return '<span class="auction-history-end"><span>' + escapeHtml(calendar) + '</span><span>' + escapeHtml(clock) + '</span></span>';
+  }
+
+  function auctionEndMarkup(value, historical = false) {
+    if (historical) return historicalAuctionEndMarkup(value);
     const deadline = auctionDeadline(value);
     if (!Number.isFinite(deadline)) return escapeHtml(value || '—');
     const date = new Date(deadline), seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
@@ -455,7 +465,7 @@
 
   function updateAuctionClocks() {
     document.querySelectorAll('[data-auction-end]').forEach(element => {
-      const markup = auctionEndMarkup(element.dataset.auctionEnd);
+      const markup = auctionEndMarkup(element.dataset.auctionEnd, element.dataset.auctionHistory === 'true');
       if (element.innerHTML !== markup) element.innerHTML = markup;
     });
   }
@@ -834,8 +844,21 @@
     return effects.size ? '<div class="bazaar-hover-panel gem-hover-panel" role="tooltip" aria-label="Available supreme gem modifiers">' + [...effects].sort().map(effect => '<span>· ' + escapeHtml(effect) + '</span>').join('') + '</div>' : '';
   }
 
+  function auctionBidDisplay(card, snapshot, historical) {
+    const firstValue = values => values.find(value => value !== null && value !== undefined && value !== '');
+    const minimum = firstValue([card.minimumBid, snapshot?.displayCard?.minimumBid, snapshot?.auction?.minimumBid]);
+    const winning = firstValue([card.currentBid, card.winningBid, snapshot?.auction?.winningBid, snapshot?.auction?.currentBid]);
+    const status = card.resultStatus || snapshot?.auction?.resultStatus;
+    const hasBid = Number(String(winning ?? '').replace(/,/g,'')) > 0;
+    if (historical) return status === 'no_bid' || !hasBid
+      ? {label:'MINIMUM BID',value:minimum ?? '—'}
+      : {label:'WINNING BID',value:winning};
+    return {label:hasBid ? 'CURRENT BID' : 'MINIMUM BID',value:hasBid ? winning : minimum ?? '—'};
+  }
+
   function renderAuctionCard(card) {
     const snapshot = listingSnapshot(card);
+    const historical = listingType === 'past';
     const pair = profileForAuction(card, snapshot);
     const profile = pair.profile;
     const metrics = displayAuctionMetrics(card, snapshot);
@@ -848,11 +871,7 @@
     }).toString();
     const outfit = officialAsset(card.outfitImage);
     const favorite = favoriteAuctionIds.includes(String(card.id));
-    const resultLabels={sold:'Paid · transfer completed',paid_pending_transfer:'Paid · awaiting server save',waiting_payment:'Awaiting payment',processing:'Processing · payment not confirmed',no_bid:'No bids · not sold',cancelled:'Cancelled · not sold',pending:'Awaiting result confirmation'};
-    const confirmedUnsold = ['no_bid','cancelled'].includes(card.resultStatus);
-    const resultBadge=listingType==='past'?'<span class="auction-result-status '+(card.paymentConfirmed?'result-paid':confirmedUnsold?'result-unsold':'result-pending')+'" title="'+escapeHtml(card.sourceStatus || 'Only confirmed payments enter Estimate price')+'">'+escapeHtml(resultLabels[card.resultStatus] || resultLabels.pending)+'</span>':'';
-    const bid = listingType==='past'?(card.currentBid?"WINNING BID":confirmedUnsold?"NO SALE":"RESULT PENDING"):card.currentBid ? "CURRENT BID" : "MINIMUM BID";
-    const bidValue = listingType==='past'?(card.currentBid || "—"):card.currentBid || card.minimumBid || "—";
+    const {label:bid, value:bidValue} = auctionBidDisplay(card, snapshot, historical);
     const skillRows = [
       ["magic", "Magic"], ["club", "Club"], ["fist", "Fist"], ["sword", "Sword"],
       ["fishing", "Fishing"], ["axe", "Axe"], ["distance", "Distance"], ["shielding", "Shielding"]
@@ -896,7 +915,7 @@
       '<div class="auction-meta-grid"><div class="auction-meta-box" title="Server and transfer availability"><small>SERVER</small><strong><span class="world-flag">' + (['BR','NA','EU','OCE'].includes(card.region) ? '<img src="https://assets.service-exevopan.com/public/assets/' + card.region.toLowerCase() + '-flag.png" alt="' + card.region + '">' : '🌐') + '</span>' + escapeHtml(card.world || "—") +
       '</strong><span class="transfer-icon" title="' + escapeHtml(snapshot?.transfer || card.transfer || "Transfer information is not available") + '">' + cardIcon(transferIsAvailable(snapshot,card) === false || (isHistoricalAuction(card,snapshot) && transferIsAvailable(snapshot,card) !== true) ? 'transfer' : 'transferOpen') + '</span></div>' +
       '<div class="auction-meta-box"><small>PVP</small><strong><img class="battleye-sprite" src="https://assets.service-exevopan.com/public/assets/' + (card.battleyeColor === 'yellow' ? 'yellow' : 'green') + 'battleye.png" alt="">' + escapeHtml(card.pvpType || "—") + '</strong></div>' +
-      '<div class="auction-meta-box"><small>AUCTION END</small><strong data-auction-end="' + escapeHtml(card.end) + '">' + auctionEndMarkup(card.end) + '</strong></div>' +
+      '<div class="auction-meta-box"><small>AUCTION END</small><strong data-auction-end="' + escapeHtml(card.end) + '" data-auction-history="' + String(historical) + '">' + auctionEndMarkup(card.end, historical) + '</strong></div>' +
       '<div class="auction-meta-box"><small>' + bid + '</small><strong><img class="coin-sprite" src="https://assets.service-exevopan.com/public/assets/tibiacoin.png" alt="TC">' + escapeHtml(formatAuctionNumber(bidValue)) + '</strong></div></div>' +
       '<div class="auction-items-row">' + itemSquares.join("") + (snapshot || isHistoricalAuction(card,snapshot) ? "" : '<span class="loading-detail-label">Snapshot unavailable</span>') + '</div>' +
       '<div class="auction-skills-grid">' + skillRows + '</div>' +
@@ -914,7 +933,7 @@
       '<span class="expansion-value" title="Permanent Prey Slot"><i class="fact-checkbox ' + (Number(metrics.preySlots || 0) > 0 ? "checked" : "") + '">' + (Number(metrics.preySlots || 0) > 0 ? cardIcon('check') : "") + '</i>Prey Slot</span>' +
       '<div class="auction-gems' + (gemPanel ? ' bazaar-hover-anchor' : '') + '"' + (gemPanel ? ' tabindex="0"' : '') + '>' + cardIcon('gems') + 'Gems: ' + escapeHtml(gemsText) + gemPanel + '</div>' +
       (Number(metrics.tcInvested) > 0 ? '<span class="auction-invested" title="This character has invested at least ' + escapeHtml(formatAuctionNumber(metrics.tcInvested)) + ' Tibia Coins in store purchases"><img class="coin-sprite" src="https://assets.service-exevopan.com/public/assets/tibiacoin.png" alt="TC">' + escapeHtml(invest) + '</span>' : '') + '</div></div>' +
-      '<div class="auction-card-footer">' + resultBadge + tags.map(tag => '<span class="auction-tag ' + (tag.gold ? 'availability-tag' : '') + '" role="img" aria-label="' + escapeHtml(tag.label) + '">' + escapeHtml(tag.label) + '</span>').join('') + '</div>' +
+      '<div class="auction-card-footer">' + tags.map(tag => '<span class="auction-tag ' + (tag.gold ? 'availability-tag' : '') + '" role="img" aria-label="' + escapeHtml(tag.label) + '">' + escapeHtml(tag.label) + '</span>').join('') + '</div>' +
       '</article>';
   }
 
@@ -1270,7 +1289,8 @@
       try{const response=await fetch('/api/bazaar/estimate?auctionid='+encodeURIComponent(card.id));const result=await response.json();if(auctionToolContext?.card.id!==card.id||auctionToolContext.action!=='price')return;if(!response.ok)throw new Error(result.error);byId('estimatedPrice').textContent=result.count?formatAuctionNumber(result.median)+' TC':'—';byId('priceSampleCount').textContent=result.count?result.count+' comparable sales in local history':'No comparable confirmed sales in local history yet';}catch(error){if(byId('priceSampleCount'))byId('priceSampleCount').textContent='Estimate unavailable';}
     }else{
       const saved=notifiedAuctionIds.includes(String(card.id));
-      body.innerHTML='<div class="notification-character"><strong>'+escapeHtml(card.name)+'</strong><div class="auction-meta-box"><small>AUCTION END</small><strong data-auction-end="'+escapeHtml(card.end)+'">'+auctionEndMarkup(card.end)+'</strong></div></div><label class="notification-choice"><input id="notifyBidded" type="checkbox">Notify me when bidded</label><label class="notification-choice"><input id="notifyEnding" type="checkbox" checked>Notify me before auction end:</label><div class="notification-time"><input id="notifyBefore" type="number" value="15" min="0" max="60" step="15"><select id="notifyUnit"><option value="1">Minutes left</option><option value="60">Hours left</option></select></div><div class="notification-actions"><button id="cancelAuctionNotification">CANCEL</button><button class="button button-primary" id="saveAuctionNotification">CONFIRM</button></div><small class="tool-assumptions">Reminders are saved on this computer and can notify with the browser closed, while the local Bazar Atlas server is running. Windows notification settings apply.</small>';
+      const historical=listingType==='past';
+      body.innerHTML='<div class="notification-character"><strong>'+escapeHtml(card.name)+'</strong><div class="auction-meta-box"><small>AUCTION END</small><strong data-auction-end="'+escapeHtml(card.end)+'" data-auction-history="'+String(historical)+'">'+auctionEndMarkup(card.end,historical)+'</strong></div></div><label class="notification-choice"><input id="notifyBidded" type="checkbox">Notify me when bidded</label><label class="notification-choice"><input id="notifyEnding" type="checkbox" checked>Notify me before auction end:</label><div class="notification-time"><input id="notifyBefore" type="number" value="15" min="0" max="60" step="15"><select id="notifyUnit"><option value="1">Minutes left</option><option value="60">Hours left</option></select></div><div class="notification-actions"><button id="cancelAuctionNotification">CANCEL</button><button class="button button-primary" id="saveAuctionNotification">CONFIRM</button></div><small class="tool-assumptions">Reminders are saved on this computer and can notify with the browser closed, while the local Bazar Atlas server is running. Windows notification settings apply.</small>';
       byId('cancelAuctionNotification').onclick=closeAuctionTool;
       byId('notifyUnit').onchange=()=>{byId('notifyBefore').max=byId('notifyUnit').value==='60'?'24':'60';byId('notifyBefore').step=byId('notifyUnit').value==='60'?'1':'15';};
       byId('saveAuctionNotification').onclick=async()=>{const id=String(card.id);if(!byId('notifyBidded').checked&&!byId('notifyEnding').checked){const index=notifiedAuctionIds.indexOf(id);if(index>=0)notifiedAuctionIds.splice(index,1);localStorage.setItem('bazar-atlas-notify',JSON.stringify(notifiedAuctionIds));const reminders=JSON.parse(localStorage.getItem('bazar-atlas-reminders')||'{}');delete reminders[id];localStorage.setItem('bazar-atlas-reminders',JSON.stringify(reminders));if(!await saveServerReminders())return;closeAuctionTool();renderAuctionListings();return;}if(!notifiedAuctionIds.includes(id))notifiedAuctionIds.push(id);localStorage.setItem('bazar-atlas-notify',JSON.stringify(notifiedAuctionIds));const reminders=JSON.parse(localStorage.getItem('bazar-atlas-reminders')||'{}');reminders[id]={name:card.name,end:auctionDeadline(card.end),minutes:Number(byId('notifyBefore').value)*Number(byId('notifyUnit').value),whenBidded:byId('notifyBidded').checked,beforeEnd:byId('notifyEnding').checked,lastBid:card.currentBid||'',fired:false};localStorage.setItem('bazar-atlas-reminders',JSON.stringify(reminders));if(!await saveServerReminders())return;closeAuctionTool();showToast('Reminder saved on the local server.');renderAuctionListings();};

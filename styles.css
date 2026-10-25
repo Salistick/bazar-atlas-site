@@ -977,6 +977,7 @@ body { background: #202225; color: #fff; }
 .cosmetic-entry > .store-quantity { position: absolute; display: inline-flex; align-items: center; justify-content: center; width: auto; height: auto; min-width: 20px; min-height: 18px; top: -6px; right: -6px; background: #ffdf00; border-radius: 4px; color: black; padding: 2px 4px; font: 11px/14px BazaarRoboto, Roboto, sans-serif; box-shadow: 0 1px 3px #0005; }
 .auction-ending-soon { color: #ff5252; }
 .auction-ended { color: #f44336; }
+.auction-meta-box strong .auction-history-end { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; line-height: 1.1; white-space: nowrap; }
 .auction-grid[aria-busy="true"] { opacity: .65; cursor: progress; }
 .database-coverage { color: #b9bbbe; font: 12px/18px BazaarRoboto, Roboto, sans-serif; padding: 0 0 12px; }
 .auction-avatar { overflow: visible; }

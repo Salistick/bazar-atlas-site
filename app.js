@@ -624,7 +624,6 @@
     return snapshot || (card && isHistoricalAuction(card, null) ? historicalListingSnapshot(card) : null);
   }
 
-  let snapshotFiltersActive=true;
   function skillRangeMatches(snapshot, keys, min, max) {
     if (!keys.length || (min === 10 && max === 150)) return true;
     return keys.some(key=>{
@@ -636,7 +635,6 @@
   }
   function cosmeticSelectionMatches(snapshot, section, names, addons=[], female=null) {
     if (!names.length) return true;
-    if (female !== null && String(snapshot?.character?.gender || '').toLowerCase() !== (female ? 'female' : 'male')) return false;
     const owned=snapshot?.cosmetics?.[section] || [];
     return names.every(name=>owned.some(item=>cosmeticIdentity(item).name.toLowerCase()===name.toLowerCase() &&
       addons.every(addon=>(cosmeticIdentity(item).type & Number(addon)) === Number(addon))));
@@ -651,94 +649,98 @@
     if(/not available|cannot|not possible/i.test(text))return false;
     return null;
   }
-  function cardMatchesClientFilters(card, snapshot) {
-    if(!snapshotFiltersActive)return true;
+  let activeClientFilterState = null;
+  function filterSelectedValues(id) {
+    const element = byId(id);
+    if (!element) return [];
+    if (element.tagName === 'SELECT') return [...element.selectedOptions].map(option=>option.value).filter(Boolean);
+    return element.value ? [element.value] : [];
+  }
+  function filterNumber(id, fallback=0) {
+    const value = byId(id)?.value;
+    const parsed = value === '' || value == null ? fallback : Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  const normalizedFilterText = value => String(value || '').replace(/&amp;/gi,'&').replace(/&#39;|&apos;/gi,"'").replace(/\s+/g,' ').trim().toLowerCase();
+  function catalogFilterOptions(name) {
+    return window.BazaarFilterCatalog?.[name] || [];
+  }
+  function matchesNamedRequirement(entries, value, catalogName, substring=false) {
+    const option = catalogFilterOptions(catalogName).find(item=>item.value===value);
+    const aliases = [value,...(option?.aliases || [])].map(normalizedFilterText);
+    return entries.some(entry=>aliases.some(alias=>substring ? normalizedFilterText(entry).includes(alias) : normalizedFilterText(entry)===alias));
+  }
+  function knownAuctionItemNames(card, snapshot) {
+    return [...(card.items || []),...(snapshot?.displayCard?.items || []),
+      ...(snapshot?.sections?.ItemSummary?.entries || []),...(snapshot?.cosmetics?.ItemSummary || [])]
+      .map(item=>typeof item==='string'?item:item.name || '').map(value=>normalizedFilterText(value)
+        .replace(/\s*\(tier[^)]*\)/g,'').replace(/[, ]+tier[: ]+\d+.*$/g,'').trim()).filter(Boolean);
+  }
+  function readClientFilterState() {
+    return {
+      locations:filterGroupValues('filterLocation'), bidded:Boolean(byId('filterBidded')?.checked),
+      bounty:filterNumber('filterBountyPoints'), boss:filterNumber('filterBossPoints'), invested:filterNumber('filterTcInvested'),
+      charmMin:filterNumber('filterCharmMin'),charmMax:filterNumber('filterCharmMax',50000),achievementMin:filterNumber('filterAchievements'),
+      imbuements:filterSelectedValues('filterImbuements'), quests:filterSelectedValues('filterQuest'),
+      achievements:filterSelectedValues('filterRareAchievements'), rareItems:filterSelectedValues('filterRareItems'),
+      gems:filterSelectedValues('filterGems'),greaterGems:filterNumber('filterGreaterGems'),
+      cosmetics:Object.fromEntries(['Outfits','StoreOutfits','Mounts','StoreMounts'].map(section=>[section,
+        $$('[data-cosmetic-choice="'+section+'"]:checked').map(input=>input.value)])),
+      addons:$$('[data-required-addon]:checked').map(input=>input.dataset.requiredAddon),
+      cosmeticQueries:$$('[data-cosmetic-filter]').map(input=>({section:input.dataset.cosmeticFilter,value:input.value.trim()})).filter(item=>item.value),
+      stores:$$('[data-store-filter]:checked').map(input=>input.dataset.storeFilter),
+      misc:$$('[data-misc-filter]:checked').map(input=>input.dataset.miscFilter),
+      skills:$$('[data-skill-choice]:checked').map(input=>({1:'magic',6:'shielding',7:'distance',8:'sword',9:'club',10:'axe',11:'fist',13:'fishing'})[input.dataset.skillChoice]).filter(Boolean),
+      minSkill:filterNumber('filterSkillMin',10),maxSkill:filterNumber('filterSkillMax',150)
+    };
+  }
+  function clientFilterStateIsActive(filters) {
+    return filters.locations.length || filters.bidded || filters.bounty || filters.boss || filters.invested || filters.achievementMin ||
+      filters.charmMin!==0 || filters.charmMax!==50000 || filters.greaterGems ||
+      ['imbuements','quests','achievements','gems','stores','misc','skills','cosmeticQueries'].some(key=>filters[key].length) ||
+      (listingType==='current' && filters.rareItems.length) || Object.values(filters.cosmetics).some(values=>values.length);
+  }
+  function cardMatchesClientFilters(card, snapshot, filters=activeClientFilterState || readClientFilterState()) {
+    if(!clientFilterStateIsActive(filters)) return true;
     let profileData;
     const getProfile=()=>profileData || (profileData=profileForAuction(card,snapshot).profile);
-    const metrics = snapshot && snapshot.metrics || {};
-    const sections = snapshot && snapshot.sections || {};
-    const cosmetics = snapshot && snapshot.cosmetics || {};
-    const allText = [
-      ...(snapshot && snapshot.featureEntries || []),
-      ...Object.values(sections).flatMap((section) => section && section.entries || []),
-      ...Object.values(cosmetics).flatMap((items) => (items || []).map((item) => item.name))
-    ].join(" ").toLowerCase();
-    const locations = filterGroupValues("filterLocation");
-    if (locations.length && !locations.includes(card.region)) return false;
-    if (byId("filterBidded").checked && !card.currentBid) return false;
-    const minBoss = Number(byId("filterBossPoints").value || 0);
-    if (Number(metrics.bountyPoints || 0) < Number(byId("filterBountyPoints").value || 0)) return false;
-    if (minBoss && Number(metrics.bossPoints || 0) < minBoss) return false;
-    const minTc = Number(byId("filterTcInvested").value || 0);
-    if (minTc && Number(metrics.tcInvested || 0) < minTc) return false;
-    const charmsMin = Number(byId("filterCharmMin").value || 0);
-    const charmsMax = Number(byId("filterCharmMax").value || 50000);
-    if ((charmsMin!==0 || charmsMax!==50000) && (Number(metrics.totalCharmPoints || 0) < charmsMin || Number(metrics.totalCharmPoints || 0) > charmsMax)) return false;
-    const achievementMin = Number(byId("filterAchievements").value || 0);
-    if (achievementMin && Number(metrics.achievementPoints || 0) < achievementMin) return false;
-    if (byId("filterImbuements").value === "all" && Number(metrics.imbuementsUnlocked || 0) < 23) return false;
-    if (byId("filterImbuements").value && byId("filterImbuements").value !== "all" && Number(metrics.imbuementsUnlocked || 0) < Number(byId("filterImbuements").value)) return false;
-    if (byId("filterAllImbuements").checked && Number(metrics.imbuementsUnlocked || 0) < 23) return false;
-    const selectedQuest = byId("filterQuest").value;
-    if (selectedQuest) {
-      const trackedQuest=CATALOG.find(quest=>quest.name===selectedQuest);
-      if (trackedQuest ? questFlag(getProfile(),trackedQuest.id).status !== 'complete' : !String(snapshot?.completedQuestLines || []).toLowerCase().includes(selectedQuest.toLowerCase())) return false;
+    const metrics = snapshot?.metrics || {}, sections = snapshot?.sections || {}, cosmetics = snapshot?.cosmetics || {};
+    const allText = [...(snapshot?.featureEntries || []),...Object.values(sections).flatMap(section=>section?.entries || []),
+      ...Object.values(cosmetics).flatMap(items=>(items || []).map(item=>item.name))].join(' ').toLowerCase();
+    if(filters.locations.length && !filters.locations.includes(card.region)) return false;
+    if(filters.bidded && !(Number(String(card.currentBid || '').replace(/,/g,''))>0)) return false;
+    if(Number(metrics.bountyPoints || 0)<filters.bounty || Number(metrics.bossPoints || 0)<filters.boss ||
+      Number(metrics.tcInvested || 0)<filters.invested || Number(metrics.achievementPoints || 0)<filters.achievementMin) return false;
+    if((filters.charmMin!==0 || filters.charmMax!==50000) &&
+      (Number(metrics.totalCharmPoints || 0)<filters.charmMin || Number(metrics.totalCharmPoints || 0)>filters.charmMax)) return false;
+    if(!filters.imbuements.every(value=>matchesNamedRequirement(sections.Imbuements?.entries || [],value,'imbuements',true))) return false;
+    for(const value of filters.quests) {
+      const quest=filterQuestTrackers.get(value);
+      if(quest ? displayQuestStatus(getProfile(),quest)!=='complete' :
+        !matchesNamedRequirement(snapshot?.completedQuestLines || sections.CompletedQuestLines?.entries || [],value,'quests',true)) return false;
     }
-    const achievementQuery = byId("filterRareAchievements").value.trim().toLowerCase();
-    if (achievementQuery && !String(sections.Achievements && sections.Achievements.entries || []).toLowerCase().includes(achievementQuery)) return false;
-    const rareItemQuery = byId("filterRareItems").value.trim().toLowerCase();
-    if (rareItemQuery && !String(sections.ItemSummary && sections.ItemSummary.entries || []).toLowerCase().includes(rareItemQuery)) return false;
-    const greaterGems = Number(byId("filterGreaterGems").value || 0);
-    if (greaterGems && Number(metrics.gemsByGrade?.greater || 0) < greaterGems) return false;
-    const gemsQuery = byId("filterGems").value.trim().toLowerCase();
-    if (gemsQuery && !String(sections.RevealedGems && sections.RevealedGems.entries || []).toLowerCase().includes(gemsQuery)) return false;
-    for(const section of ['Outfits','StoreOutfits','Mounts','StoreMounts']){
-      const choices=$$('[data-cosmetic-choice="'+section+'"]:checked').map(input=>input.value);
-      const required=section==='Outfits'?$$('[data-required-addon]:checked').map(input=>input.dataset.requiredAddon):[];
-      const gender=document.querySelector('[data-cosmetic-gender="'+section+'"]');
-      if(!cosmeticSelectionMatches(snapshot,section,choices,required,gender ? gender.checked : null))return false;
+    if(!filters.achievements.every(value=>matchesNamedRequirement(sections.Achievements?.entries || [],value,'achievements'))) return false;
+    if(listingType==='current' && filters.rareItems.length) {
+      const items=knownAuctionItemNames(card,snapshot);
+      if(!filters.rareItems.some(value=>matchesNamedRequirement(items,value,'rareItems'))) return false;
     }
-    for (const input of $$('[data-cosmetic-filter]')) {
-      const value = input.value.trim().toLowerCase();
-      if (value && !(cosmetics[input.dataset.cosmeticFilter] || []).some((item) => item.name.toLowerCase().includes(value))) return false;
+    if(Number(metrics.gemsByGrade?.greater || 0)<filters.greaterGems) return false;
+    const supreme=(snapshot?.gems || []).flatMap(gem=>gem.supremeMods || []);
+    if(!filters.gems.every(value=>matchesNamedRequirement(supreme,value,'gems'))) return false;
+    for(const section of ['Outfits','StoreOutfits','Mounts','StoreMounts']) {
+      if(!cosmeticSelectionMatches(snapshot,section,filters.cosmetics[section],section==='Outfits'?filters.addons:[])) return false;
     }
-    for (const input of $$('[data-store-filter]:checked')) {
-      const name=input.dataset.storeFilter;
-      const flags={ 'Training Dummy': /training dummy|exercise dummy/.test(allText), 'Charm Expansion': metrics.charmExpansion==='yes', 'Gold Pouch': /gold pouch/.test(allText), 'Prey Slot':Number(metrics.preySlots||0)>0,'Reward Shrine': /reward shrine/.test(allText),'Imbuement Shrine': /imbu(?:ement|ing) shrine/.test(allText),'Hirelings':Number(metrics.hirelings||0)>0,'Weekly Task Expansion':metrics.weeklyTaskExpansion==='yes','Mailbox':/mailbox/.test(allText),'Regular World Transfer':transferIsAvailable(snapshot,card)===true};
-      if (!flags[name]) return false;
+    for(const query of filters.cosmeticQueries) if(!(cosmetics[query.section] || []).some(item=>normalizedFilterText(item.name).includes(normalizedFilterText(query.value)))) return false;
+    const flags={'Training Dummy':/training dummy|exercise dummy/.test(allText),'Charm Expansion':metrics.charmExpansion==='yes',
+      'Gold Pouch':/gold pouch/.test(allText),'Prey Slot':Number(metrics.preySlots || 0)>0,'Reward Shrine':/reward shrine/.test(allText),
+      'Imbuement Shrine':/imbu(?:ement|ing) shrine/.test(allText),'Hirelings':Number(metrics.hirelings || 0)>0,
+      'Weekly Task Expansion':metrics.weeklyTaskExpansion==='yes','Mailbox':/mailbox/.test(allText),'Regular World Transfer':transferIsAvailable(snapshot,card)===true};
+    if(!filters.stores.every(name=>flags[name])) return false;
+    if(filters.misc.length) {
+      const tags=new Set(auctionTags(card,snapshot).map(tag=>tag.id));
+      if(!filters.misc.every(value=>tags.has(value))) return false;
     }
-    const miscFilters=$$('[data-misc-filter]:checked');
-    const matchingTags = miscFilters.length?new Set(auctionTags(card, snapshot).map(tag => tag.id.toLowerCase())):new Set();
-    for (const input of miscFilters) {
-      const expected = input.dataset.miscFilter.toLowerCase();
-      if (!matchingTags.has(expected)) return false;
-    }
-
-    const minSkill = Number(byId("filterSkillMin").value || 0);
-    const maxSkill = Number(byId("filterSkillMax").value || 999);
-    const skillKeyById = { "1": "magic", "6": "shielding", "7": "distance", "8": "sword", "9": "club", "10": "axe", "11": "fist", "13": "fishing" };
-    const selectedSkills = $$('[data-skill-choice]:checked').map((input) => skillKeyById[input.dataset.skillChoice]).filter(Boolean);
-    const skillKey = skillKeyById[byId("filterSkill").value];
-    if (!skillRangeMatches(snapshot,selectedSkills.length ? selectedSkills : skillKey ? [skillKey] : [],minSkill,maxSkill)) return false;
-    return true;
-  }
-
-  function activeListingFilterCount() {
-    const values = [
-      byId("filterNickname").value, filterGroupValues("filterVocation").join(","), filterGroupValues("filterPvp").join(","),
-      filterGroupValues("filterBattlEye").join(","), byId("filterWorld").value, byId("filterLocation").value,
-      byId("filterBossPoints").value, byId("filterTcInvested").value, byId("filterImbuements").value,
-      byId("filterQuest").value, byId("filterAchievements").value, byId("filterRareAchievements").value,
-      byId("filterRareItems").value, byId("filterGems").value, byId("filterGreaterGems").value
-    ].filter(Boolean).length;
-    const ranges = (Number(byId("filterLevelMin").value || 0) > 0 ? 1 : 0) +
-      (Number(byId("filterLevelMax").value || 3000) < 3000 ? 1 : 0) +
-      (Number(byId("filterSkillMin").value || 10) > 10 ? 1 : 0) +
-      (Number(byId("filterSkillMax").value || 150) < 150 ? 1 : 0) +
-      (Number(byId("filterCharmMin").value || 0) > 0 ? 1 : 0) +
-      (Number(byId("filterCharmMax").value || 50000) < 50000 ? 1 : 0);
-    return values + ranges + $$('[data-store-filter]:checked, [data-misc-filter]:checked, [data-skill-choice]:checked, [data-cosmetic-filter]').filter((element) => element.checked || element.value.trim()).length +
-      (byId("filterBidded").checked ? 1 : 0) + (byId("filterAllImbuements").checked ? 1 : 0);
+    return skillRangeMatches(snapshot,filters.skills,filters.minSkill,filters.maxSkill);
   }
 
   // Exevo Pan's public character classification (chunk 3700, 2026-10-21).
@@ -806,13 +808,18 @@
         ((achievementKnown && !hasRoyalty) || snapshot.classificationEvidence?.royaltyOfHazard === false))
     };
   }
+  function isRareNickname(value) {
+    const name=String(value || '').trim();
+    return name.length>=2 && name.length<=3 || /[äëïöüÿ'\-.,]|[A-Z]{2,}/.test(name);
+  }
+
   function auctionTags(card, snapshot) {
     if (!snapshot) return [];
     const metrics = snapshot.metrics || {}, cosmetics = snapshot.cosmetics || {};
     const tags = [];
     const add = (id, condition, suffix, reason, gold=false) => { if (condition) tags.push({id, label:id + (suffix || ''), reason, gold}); };
     const names = key => (cosmetics[key] || []).map(item => typeof item === 'string' ? item : item.name).join('|');
-    add('Rare nicknames', /^[A-Za-z]{2,3}$/.test(card.name || ''), '', 'Local criterion: nickname with two or three letters');
+    add('Rare nicknames', isRareNickname(card.name));
     add('Many charms', Number(metrics.totalCharmPoints || 0) >= 4800, '', 'At least 4,800 charm points, following Exevo Pan');
     const quests = referenceQuestSummary(snapshot);
     add('Many quests', quests.complete >= 26, '', 'At least 26 reference quest markers, following Exevo Pan');
@@ -967,10 +974,10 @@
       byId("listingMessage").textContent = "Fonte oficial indisponível";
       return;
     }
-    grid.innerHTML = visible.length ? visible.map(renderAuctionCard).join("") : '<div class="listing-empty-filter">Nenhum leilão salvo no banco local corresponde a estes filtros.</div>';
+    grid.innerHTML = visible.length ? visible.map(renderAuctionCard).join("") : '<div class="listing-empty-filter"><strong>Sorry, no auction was found</strong><button type="button" class="button button-primary" data-change-filters>Change filters</button></div>';
     const start = listingTotal ? (listingPage - 1) * AUCTIONS_PER_PAGE + 1 : 0;
     const end = listingTotal ? Math.min(listingPage * AUCTIONS_PER_PAGE, listingTotal) : 0;
-    byId("listingRange").textContent = start + " - " + end + " of " + Number(listingTotal || 0).toLocaleString("en-US");
+    byId("listingRange").textContent = listingTotal ? start + " - " + end + " of " + Number(listingTotal).toLocaleString("en-US") : "No characters found";
     ["firstPage", "previousPage"].forEach((id) => { byId(id).disabled = listingPage <= 1; });
     ["nextPage", "lastPage"].forEach((id) => { byId(id).disabled = !listingTotalPages || listingPage >= listingTotalPages; });
     updateAuctionClocks();
@@ -982,12 +989,12 @@
       profession: filterGroupValues("filterVocation").join(","),
       pvp: filterGroupValues("filterPvp").join(","),
       battleye: filterGroupValues("filterBattlEye").join(","),
-      world: byId("filterWorld").value.trim(),
+      world: filterSelectedValues("filterWorld").join(","),
       levelMin: byId("filterLevelMin").value,
       levelMax: byId("filterLevelMax").value,
       skillMin: byId("filterSkillMin").value,
       skillMax: byId("filterSkillMax").value,
-      skillId: $$("[data-skill-choice]:checked").map(input=>input.dataset.skillChoice).join(",") || byId("filterSkill").value,
+      skillId: $$("[data-skill-choice]:checked").map(input=>input.dataset.skillChoice).join(","),
       sort: listingType === 'past' ? 'end' : document.querySelector('input[name="auctionSort"]:checked')?.value || "end",
       ascending: listingType === 'past' || byId("sortAscending").checked ? "false" : "true"
     };
@@ -1026,7 +1033,7 @@
   }
   function localNativeMatch(card, filters) {
     const level=Number(card.level || 0);
-    const minLevel=Number(filters.levelMin || 0),maxLevel=Number(filters.levelMax || 3000);
+    const minLevel=filters.levelMin===''||filters.levelMin==null?0:Number(filters.levelMin),maxLevel=filters.levelMax===''||filters.levelMax==null?3000:Number(filters.levelMax);
     if((minLevel!==0 || maxLevel!==3000) && (level<minLevel || level>maxLevel))return false;
     const vocation=String(card.vocation || '').toLowerCase().replace(/^(elite |royal |master |elder |exalted )/,'');
     const professions={none:'1',druid:'2',knight:'3',paladin:'4',sorcerer:'5',monk:'6'};
@@ -1034,7 +1041,7 @@
     for(const [key,value] of [['profession',professions[vocation]],['pvp',pvps[card.pvpType]],['battleye',card.battleyeColor==='green'?'1':card.battleyeColor==='yellow'?'2':'']]){
       if(filters[key]&&!filters[key].split(',').includes(value))return false;
     }
-    if(filters.world&&String(card.world).toLowerCase()!==filters.world.toLowerCase())return false;
+    if(filters.world&&!filters.world.split(',').some(world=>String(card.world).toLowerCase()===world.toLowerCase()))return false;
     if(filters.nickname&&!String(card.name).toLowerCase().includes(filters.nickname.toLowerCase()))return false;
     if(listingType==='past'&&!validHistoricalAuction(card))return false;
     if(listingType==='current'&&(!Number.isFinite(auctionDeadline(card.end))||auctionDeadline(card.end)<=Date.now()))return false;
@@ -1063,7 +1070,7 @@
     }catch(error){}
   }
   async function loadBazaarListings(page) {
-    listingPage = Math.max(1, Number(page) || 1);
+    listingPage = Number.isFinite(Number(page)) ? Math.max(1, Math.trunc(Number(page))) : 1;
     const requestVersion = ++listingQueryVersion;
     listingError = "";
     byId("listingMessage").textContent = "Loading local Bazaar database…";
@@ -1071,6 +1078,7 @@
     byId("auctionGrid").setAttribute("aria-busy", "true");
     if (!auctionListings.length) byId("auctionGrid").innerHTML = '<div class="listing-loading">Loading auctions…</div>';
     const params = new URLSearchParams({ type: listingType, page: String(listingPage), ...listingQueryParams() });
+    renderActiveFilters();syncReferenceFilterUrl(listingPage);
     try {
       let result;
       const advanced=true;
@@ -1085,11 +1093,8 @@
       if(requestVersion!==listingQueryVersion)return;
       showDatabaseCoverage(index.coverage || {});
       const filters=Object.fromEntries(params.entries());
-      snapshotFiltersActive=filterGroupValues('filterLocation').length || byId('filterBidded').checked ||
-        ['filterBossPoints','filterBountyPoints','filterTcInvested','filterAchievements','filterGreaterGems','filterCharmMin'].some(id=>Number(byId(id).value)>0) ||
-        Number(byId('filterCharmMax').value || 50000)<50000 ||
-        ['filterImbuements','filterQuest','filterRareAchievements','filterRareItems','filterGems'].some(id=>byId(id).value.trim()) ||
-        byId('filterAllImbuements').checked || $$('[data-cosmetic-choice]:checked,[data-store-filter]:checked,[data-misc-filter]:checked,[data-skill-choice]:checked').length || byId('filterSkill').value;
+      activeClientFilterState=readClientFilterState();
+      updateFilterWorldOptions(index.auctions);
       const matching=index.auctions.filter(card=>localNativeMatch(card,filters)&&cardMatchesClientFilters(card,card.snapshot));
       sortAuctionCards(matching,filters);
       const pages=Math.ceil(matching.length/AUCTIONS_PER_PAGE);
@@ -1100,10 +1105,11 @@
       await preloadCardImages(result.auctions || []);
       if (requestVersion !== listingQueryVersion) return;
       auctionListings = Array.isArray(result.auctions) ? result.auctions : [];
-      if (Array.isArray(result.worlds)) byId("bazaarWorlds").innerHTML=result.worlds.map(world=>'<option value="'+escapeHtml(world)+'">').join("");
+
       listingTotal = Number(result.total || 0);
       listingTotalPages = Number(result.totalPages || 0);
       listingError = "";
+      syncReferenceFilterUrl(listingPage);
       byId("listingSourceDot").classList.remove("loading");
       byId("listingMessage").textContent = "Source: local Bazaar database";
       renderAuctionListings();
@@ -2016,35 +2022,16 @@
       const drawer = byId("auctionFilterDrawer");
       drawer.hidden = !drawer.hidden;
       byId("filterToggle").setAttribute("aria-expanded", String(!drawer.hidden));
+      if(!drawer.hidden)byId('closeFilters').focus();
     });
     byId("closeFilters").addEventListener("click", () => {
+      const wasOpen=!byId('auctionFilterDrawer').hidden;
       byId("auctionFilterDrawer").hidden = true;
       byId("filterToggle").setAttribute("aria-expanded", "false");
+      if(wasOpen)byId('filterToggle').focus();
     });
-    byId("applyAuctionFilters").addEventListener("click", () => {
-      listingPage = 1;
-      listingFilters = listingQueryParams();
-      byId("auctionFilterDrawer").hidden = true;
-      byId("filterToggle").setAttribute("aria-expanded", "false");
-      loadBazaarListings(1);
-    });
-    byId("clearAuctionFilters").addEventListener("click", () => {
-      byId("auctionFilterDrawer").querySelectorAll("input").forEach((input) => {
-        if (input.type === "checkbox") input.checked = false;
-        else input.value = "";
-      });
-      ["filterLevelMin", "filterCharmMin"].forEach((id) => { byId(id).value = "0"; });
-      ["filterLevelMax"].forEach((id) => { byId(id).value = "3000"; });
-      ["filterSkillMin"].forEach((id) => { byId(id).value = "10"; });
-      ["filterSkillMax"].forEach((id) => { byId(id).value = "150"; });
-      ["filterCharmMax"].forEach((id) => { byId(id).value = "50000"; });
-      ["filterVocation", "filterPvp", "filterBattlEye", "filterLocation", "filterSkill", "filterImbuements", "filterQuest"].forEach((id) => { byId(id).value = ""; });
-      resetAuctionSortDefaults();
-      listingFilters = {};
-      document.querySelectorAll('.cosmetic-filter-tile').forEach(tile=>{tile.hidden=false;const image=tile.querySelector('img');image.src=image.src.replace('/female/','/male/');});
-      renderActiveFilters();
-      if (!suppressFilterReload) loadBazaarListings(1);
-    });
+    byId('applyAuctionFilters')?.addEventListener('click',()=>applyReferenceFilterChange());
+    byId('clearAuctionFilters').addEventListener('click',clearReferenceFilters);
     byId("sortToggle").addEventListener("click", () => {
       const menu = byId("sortMenu");
       menu.hidden = !menu.hidden;
@@ -2110,7 +2097,7 @@
     byId('globalSearch').addEventListener('input', () => {
       if (activeView !== 'overview') return;
       clearTimeout(nicknameTimer);
-      nicknameTimer = setTimeout(applyNicknameSearch, 300);
+      nicknameTimer = setTimeout(applyNicknameSearch, 1000);
     });
     byId("globalSearch").addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
@@ -2156,6 +2143,7 @@
     });
     byId("auctionGrid").addEventListener("click", (event) => {
       if (event.target.closest("#retryListings")) { loadBazaarListings(listingPage); return; }
+      if(event.target.closest("[data-change-filters]")){if(byId("auctionFilterDrawer").hidden)byId("filterToggle").click();return;}
       const menuToggle = event.target.closest("[data-menu-toggle]");
       if (menuToggle) {
         const card = menuToggle.closest(".auction-card");
@@ -2252,16 +2240,17 @@
 
   async function prepareCosmeticPickers(){
     try{
-      const response=await fetch('/reference_cosmetics.json');if(!response.ok)return;const catalog=await response.json();
+      const response=await fetch('/reference_cosmetics.json',{signal:AbortSignal.timeout(5000)});if(!response.ok)return;const catalog=await response.json();
       for(const details of document.querySelectorAll('#auctionFilterDrawer .filter-accordion')){
         const search=details.querySelector('[data-cosmetic-filter]');if(!search)continue;const section=search.dataset.cosmeticFilter;
         search.removeAttribute('data-cosmetic-filter');search.dataset.cosmeticSearch=section;search.placeholder="e.g., '"+(section.includes('Outfit')?'Golden Outfit':'Draptor')+"'";
         const title=document.createElement('label');title.className='cosmetic-search-label';title.textContent='Search by name';details.insertBefore(title,search);
         const count=document.createElement('b');count.className='cosmetic-selection-count';count.dataset.cosmeticCount=section;count.hidden=true;details.querySelector('summary').append(count);
-        if(section.includes('Outfit')){const options=document.createElement('div');options.className='cosmetic-picker-options';options.innerHTML='<label>Male <input type="checkbox" role="switch" data-cosmetic-gender="'+section+'"> Female</label>'+(section==='Outfits'?'<label><input data-required-addon="1" type="checkbox">Addon 1</label><label><input data-required-addon="2" type="checkbox">Addon 2</label>':'');details.append(options);}
+        if(section.includes('Outfit')){const options=document.createElement('div');options.className='cosmetic-picker-options';options.innerHTML='<label>Male <input type="checkbox" role="switch" data-cosmetic-gender="'+section+'"> Female</label>'+(section==='Outfits'?'<label><input data-required-addon="1" type="checkbox" checked>Addon 1</label><label><input data-required-addon="2" type="checkbox" checked>Addon 2</label>':'<label><input data-store-addon="1" type="checkbox" checked disabled>Addon 1</label><label><input data-store-addon="2" type="checkbox" checked disabled>Addon 2</label>');details.append(options);}
         const grid=document.createElement('div');grid.className='cosmetic-picker-grid';
         grid.innerHTML=(catalog[section]||[]).map(item=>'<label class="cosmetic-filter-tile" title="'+escapeHtml(item.name)+'"><input type="checkbox" data-cosmetic-choice="'+section+'" value="'+escapeHtml(item.name)+'">'+spriteImage(item.image,item.name,'character',true)+'</label>').join('');details.append(grid);
       }
+      window.BazaarFilterControls?.mount();updateCosmeticPreview();
     }catch(error){}
   }
 
@@ -2271,91 +2260,287 @@
     filterBattlEye: [['1','Green','greenbattleye'],['2','Yellow','yellowbattleye']],
     filterLocation: [['EU','EU','eu-flag'],['NA','NA','na-flag'],['BR','BR','br-flag'],['OCE','OCE','oce-flag']]
   };
-  function filterGroupValues(id) { return [...byId(id).selectedOptions].map(o=>o.value).filter(Boolean); }
-  function renderActiveFilters() {
-    if (activeView === 'overview') byId('globalSearch').value = byId('filterNickname').value;
-    const tags = [];
-    const add = (label, target, value='', image='') => tags.push('<button class="active-auction-filter" data-remove-filter="' + escapeHtml(target) + '" data-remove-value="' + escapeHtml(value) + '">' + (image ? '<img src="https://assets.service-exevopan.com/public/assets/' + image + '.png" alt="">' : '') + escapeHtml(label) + '<span>×</span></button>');
-    for (const [id, options] of Object.entries(FILTER_GROUPS)) {
-      const selected = filterGroupValues(id);
-      for (const [value,label,image] of options) {
-        const input = document.querySelector('[data-filter-group="' + id + '"][value="' + value + '"]');
-        if (input) input.checked = selected.includes(value);
-        if (selected.includes(value)) add(label,id,value,image);
+  const FILTER_DEFAULTS={filterLevelMin:0,filterLevelMax:3000,filterSkillMin:10,filterSkillMax:150,filterCharmMin:0,filterCharmMax:50000,
+    filterBossPoints:0,filterBountyPoints:0,filterTcInvested:0,filterAchievements:0,filterGreaterGems:0};
+  const FILTER_RANGES=[['level','filterLevelMin','filterLevelMax','Level'],['skill','filterSkillMin','filterSkillMax','Skill'],['charm','filterCharmMin','filterCharmMax','Charm points']];
+  const FILTER_MULTI={filterWorld:['serverSet','Server'],filterImbuements:['imbuementsSet','Imbuements'],filterQuest:['questSet','Quests'],
+    filterRareAchievements:['achievementSet','Rare achievements'],filterGems:['greaterGemSet','Supreme Gems'],filterRareItems:['rareItemSet','Rare items']};
+  const FILTER_NUMERIC_KEYS={filterLevelMin:'minLevel',filterLevelMax:'maxLevel',filterSkillMin:'minSkill',filterSkillMax:'maxSkill',
+    filterCharmMin:'minCharmPoints',filterCharmMax:'maxCharmPoints',filterBossPoints:'bossPoints',filterBountyPoints:'minBountyPoints',
+    filterTcInvested:'tcInvested',filterAchievements:'achievementPoints',filterGreaterGems:'greaterGemCount'};
+  const FILTER_STORE_KEYS={'Training Dummy':'dummy','Charm Expansion':'charmExpansion','Imbuement Shrine':'imbuementShrine','Gold Pouch':'goldPouch',
+    'Prey Slot':'preySlot','Reward Shrine':'rewardShrine','Hirelings':'hireling','Weekly Task Expansion':'huntingSlot','Mailbox':'mailbox','Regular World Transfer':'transferAvailable'};
+  const FILTER_TAG_KEYS={'Soul War available':'soulwarAvailable','Primal Ordeal available':'primalAvailable','Many charms':'manyCharms','Many quests':'manyQuests',
+    'Many mounts':'manyMounts','Many store cosmetics':'manyStoreCosmetics','Rare mounts':'rareMounts','Rare outfits':'rareOutfits','Secondary skill':'secondaryEkSkill'};
+  const FILTER_SKILL_KEYS={1:'magic',7:'distance',9:'club',8:'sword',10:'axe',11:'fist',6:'shielding',13:'fishing'};
+  const FILTER_COSMETIC_KEYS={Outfits:'outfitSet',StoreOutfits:'storeOutfitSet',Mounts:'mountSet',StoreMounts:'storeMountSet'};
+  const filterQuestTrackers=new Map();
+  let filterDebounceTimer=null, previousGemSelection=[];
+  function filterGroupValues(id) { return filterSelectedValues(id); }
+  function setFilterSelected(id,values,{allowUnknown=false}={}) {
+    const select=byId(id);if(!select)return;
+    const chosen=new Set(values.map(String));
+    if(select.tagName!=='SELECT'){select.value=values[0] || '';return;}
+    if(allowUnknown)for(const value of chosen)if(![...select.options].some(option=>option.value===value)){
+      const option=document.createElement('option');option.value=value;option.textContent=value;select.append(option);
+    }
+    [...select.options].forEach(option=>option.selected=chosen.has(option.value));
+    window.BazaarFilterControls?.refresh(id);
+  }
+  function setReferenceOptions(id,options) {
+    const select=byId(id);if(!select)return;
+    if(window.BazaarFilterControls?.setOptions){window.BazaarFilterControls.setOptions(id,options);return;}
+    const chosen=new Set(filterSelectedValues(id));
+    select.innerHTML=options.map(option=>'<option value="'+escapeHtml(option.value)+'"'+(chosen.has(option.value)?' selected':'')+'>'+escapeHtml(option.label || option.value)+'</option>').join('');
+  }
+  function populateReferenceFilterOptions() {
+    for(const [id,key] of [['filterImbuements','imbuements'],['filterRareAchievements','achievements'],['filterRareItems','rareItems']])setReferenceOptions(id,catalogFilterOptions(key));
+    const refs=catalogFilterOptions('quests'), options=[];
+    filterQuestTrackers.clear();
+    for(const quest of ['utility','access','boss'].flatMap(displayQuests)){
+      const ref=refs.find(option=>option.value===quest.name || (!quest.displayStage && option.questId===quest.id));
+      const value=ref?.value || quest.name.replace(/ Quest$/,'');
+      if(filterQuestTrackers.has(value))continue;
+      filterQuestTrackers.set(value,quest);options.push({value,label:ref?.label || value});
+    }
+    setReferenceOptions('filterQuest',options);
+    refreshGemFilterOptions();
+  }
+  function refreshGemFilterOptions(changedId='') {
+    const professions=filterGroupValues('filterVocation');
+    let selected=filterSelectedValues('filterGems');
+    const options=catalogFilterOptions('gems');
+    if(changedId==='filterGems'){
+      const added=selected.find(value=>!previousGemSelection.includes(value));
+      const option=options.find(item=>item.value===added);
+      if(option && !option.shared && option.profession)setFilterSelected('filterVocation',[option.profession]);
+    }
+    const chosen=filterGroupValues('filterVocation');
+    if(chosen.includes('1') && changedId==='filterVocation')selected=[];
+    else if(changedId==='filterVocation' && chosen.length>1)selected=selected.filter(value=>options.find(option=>option.value===value)?.shared);
+    const available=options.filter(option=>option.shared || (!chosen.includes('1') && (!chosen.length || (option.professions || [option.profession]).some(value=>chosen.includes(value)))));
+    selected=selected.filter(value=>available.some(option=>option.value===value));
+    setReferenceOptions('filterGems',available);setFilterSelected('filterGems',selected);
+    previousGemSelection=selected;
+  }
+  function updateFilterWorldOptions(cards) {
+    const selected=filterSelectedValues('filterWorld'),pvp=filterGroupValues('filterPvp'),battleye=filterGroupValues('filterBattlEye'),locations=filterGroupValues('filterLocation');
+    const pvpValues={Open:'0',Optional:'1',Hardcore:'2','Retro Open':'3','Retro Hardcore':'4'};
+    const available=cards.filter(card=>(!pvp.length || pvp.includes(pvpValues[card.pvpType])) &&
+      (!battleye.length || battleye.includes(card.battleyeColor==='green'?'1':card.battleyeColor==='yellow'?'2':'')) &&
+      (!locations.length || locations.includes(card.region))).map(card=>card.world).filter(Boolean);
+    const worlds=[...new Set([...available,...selected])].sort((a,b)=>a.localeCompare(b));
+    setReferenceOptions('filterWorld',worlds.map(value=>({value,label:value})));setFilterSelected('filterWorld',selected);
+  }
+  function normalizeReferenceRanges(changedId='') {
+    for(const [id,fallback] of Object.entries(FILTER_DEFAULTS)){
+      const input=byId(id);if(!input)continue;
+      const raw=input.value===''?fallback:Number(input.value);
+      const cap=id.startsWith('filterSkill')?999:1e9;
+      input.value=String(Math.max(0,Math.min(cap,Number.isFinite(raw)?raw:fallback)));
+    }
+    for(const [,minId,maxId] of FILTER_RANGES){
+      const minimum=filterNumber(minId),maximum=filterNumber(maxId);
+      if(minimum>maximum){
+        if(changedId===minId)byId(maxId).value=String(minimum);
+        else if(changedId===maxId)byId(minId).value=String(maximum);
+        else{byId(minId).value=String(maximum);byId(maxId).value=String(minimum);}
       }
     }
-    byId('auctionFilterDrawer').querySelectorAll('input:not([data-filter-group]):not([data-cosmetic-search]):not([data-cosmetic-gender]),select:not([multiple])').forEach(input => {
-      if (!input.id && !input.dataset.storeFilter && !input.dataset.miscFilter && !input.dataset.cosmeticFilter && !input.dataset.skillChoice && !input.dataset.cosmeticChoice && !input.dataset.requiredAddon) return;
-      if (input.type === 'checkbox' && !input.checked) return;
-      const defaults = {filterLevelMin:'0',filterLevelMax:'3000',filterSkillMin:'10',filterSkillMax:'150',filterCharmMin:'0',filterCharmMax:'50000'};
-      if (input.type !== 'checkbox' && (!input.value || input.value === defaults[input.id])) return;
-      if(input.dataset.cosmeticChoice){add(input.value,'choice:'+input.dataset.cosmeticChoice,input.value);return;}
-      if(input.dataset.requiredAddon){add('Addon '+input.dataset.requiredAddon,'addon:'+input.dataset.requiredAddon);return;}
-      const target = input.id || (input.dataset.storeFilter ? 'store:' + input.dataset.storeFilter : input.dataset.miscFilter ? 'misc:' + input.dataset.miscFilter : input.dataset.skillChoice ? 'skill:' + input.dataset.skillChoice : 'cosmetic:' + input.dataset.cosmeticFilter);
-      const label = ({filterLevelMin:'📏 Min level',filterLevelMax:'📏 Max level',filterSkillMin:'Min skill',filterSkillMax:'Max skill',filterCharmMin:'Min charm points',filterCharmMax:'Max charm points'})[input.id] || input.closest('label')?.textContent.trim() || input.closest('fieldset')?.querySelector('legend')?.textContent || input.closest('details')?.querySelector('summary')?.textContent || input.placeholder || input.id;
-      add(label + (input.type === 'checkbox' ? '' : ': ' + (input.type==='number'?Number(input.value).toLocaleString('en-US'):input.value)),target);
-    });
-    document.querySelectorAll('[data-cosmetic-count]').forEach(badge=>{const count=document.querySelectorAll('[data-cosmetic-choice="'+badge.dataset.cosmeticCount+'"]:checked').length;badge.textContent=count;badge.hidden=count===0;});
-    byId('activeAuctionFilters').innerHTML = tags.join('');
-    const count = Object.keys(FILTER_GROUPS).filter(id=>filterGroupValues(id).length).length + tags.filter(t=>!t.includes('data-remove-value="') || t.includes('data-remove-value=""')).length;
-    byId('activeFilterCount').hidden = count === 0;
-    byId('activeFilterCount').textContent = count;
+  }
+  function referenceAddonMask(){return $$('[data-required-addon]:checked').reduce((mask,input)=>mask|Number(input.dataset.requiredAddon),0);}
+  function updateCosmeticPreview(changed=null){
+    if(changed?.dataset.cosmeticGender)$$('[data-cosmetic-gender]').forEach(input=>input.checked=changed.checked);
+    const female=Boolean(document.querySelector('[data-cosmetic-gender]')?.checked),mask=referenceAddonMask();
+    for(const input of $$('[data-cosmetic-choice]')){
+      const image=input.parentElement.querySelector('img');if(!image)continue;
+      if(input.dataset.cosmeticChoice.includes('Outfit'))image.src=image.src.replace(/\/(male|female)\//,'/'+(female?'female':'male')+'/');
+      if(input.dataset.cosmeticChoice==='Outfits')image.src=image.src.replace(/_[0-3]\.gif(?=\?|$)/,'_'+mask+'.gif');
+    }
+  }
+  function syncBulkFilterCheckboxes(){
+    for(const [id,selectId] of [['filterAllImbuements','filterImbuements'],['filterAllItems','filterRareItems']]){
+      const box=byId(id),select=byId(selectId);if(!box || !select)continue;
+      const total=[...select.options].filter(option=>option.value && !option.disabled).length, count=filterSelectedValues(selectId).length;
+      box.checked=total>0 && count===total;box.indeterminate=count>0 && count<total;select.disabled=box.checked;
+    }
+  }
+  function renderActiveFilters() {
+    if(activeView==='overview')byId('globalSearch').value=byId('filterNickname').value;
+    syncBulkFilterCheckboxes();
+    const tags=[],groups=new Set();
+    const add=(label,target,value='',image='',group=target)=>{
+      groups.add(group);tags.push('<button class="active-auction-filter" data-remove-filter="'+escapeHtml(target)+'" data-remove-value="'+escapeHtml(value)+'">'+
+        (image?'<img src="https://assets.service-exevopan.com/public/assets/'+image+'.png" alt="">':'')+escapeHtml(label)+'<span aria-hidden="true">×</span></button>');
+    };
+    const nickname=byId('filterNickname').value.trim();if(nickname)add('Search nickname: '+nickname,'filterNickname');
+    for(const [id,options] of Object.entries(FILTER_GROUPS)){
+      const selected=filterGroupValues(id);
+      for(const [value,label,image] of options){
+        const input=document.querySelector('[data-filter-group="'+id+'"][value="'+value+'"]');if(input)input.checked=selected.includes(value);
+        if(selected.includes(value))add(label,id,value,image,id);
+      }
+    }
+    for(const [id,[,label]] of Object.entries(FILTER_MULTI)){
+      if(id==='filterRareItems' && listingType==='past')continue;
+      const selected=filterSelectedValues(id),select=byId(id);if(!selected.length || !select)continue;
+      if((id==='filterImbuements' && byId('filterAllImbuements').checked) || (id==='filterRareItems' && byId('filterAllItems').checked)){
+        add(id==='filterImbuements'?'All Imbuements':'All items',id,'*','',id);continue;
+      }
+      for(const value of selected){const option=[...select.options].find(option=>option.value===value);add((id==='filterWorld'?'':label+': ')+(option?.textContent || value),id,value,'',id);}
+    }
+    for(const [key,minId,maxId,label] of FILTER_RANGES){
+      const minimum=filterNumber(minId,FILTER_DEFAULTS[minId]),maximum=filterNumber(maxId,FILTER_DEFAULTS[maxId]);
+      if(minimum!==FILTER_DEFAULTS[minId] || maximum!==FILTER_DEFAULTS[maxId])add(label+': '+minimum.toLocaleString('en-US')+' – '+maximum.toLocaleString('en-US'),'range:'+key,'','','range:'+key);
+    }
+    for(const [id,label] of [['filterBossPoints','Boss points'],['filterBountyPoints','Bounty points'],['filterTcInvested','Tibia Coins invested'],['filterAchievements','Achievement points'],['filterGreaterGems','Min Greater Gems']]){
+      if(filterNumber(id)>0)add(label+': '+filterNumber(id).toLocaleString('en-US'),id);
+    }
+    if(byId('filterBidded').checked)add('Bidded only','filterBidded');
+    for(const input of $$('[data-skill-choice]:checked'))add(input.closest('label')?.textContent.trim() || FILTER_SKILL_KEYS[input.dataset.skillChoice],'skill:'+input.dataset.skillChoice,'','','skills');
+    for(const [section] of Object.entries(FILTER_COSMETIC_KEYS))for(const input of $$('[data-cosmetic-choice="'+section+'"]:checked'))add(input.value,'choice:'+section,input.value,'',section);
+    for(const input of $$('[data-store-filter]:checked'))add(input.dataset.storeFilter,'store:'+input.dataset.storeFilter);
+    for(const input of $$('[data-misc-filter]:checked'))add(input.dataset.miscFilter,'misc:'+input.dataset.miscFilter,'','',input.dataset.miscFilter==='Rare nicknames'?'rareNick':'tags');
+    for(const input of $$('[data-cosmetic-filter]'))if(input.value.trim())add(input.value.trim(),'legacy:'+input.dataset.cosmeticFilter,'','','legacy:'+input.dataset.cosmeticFilter);
+    document.querySelectorAll('[data-cosmetic-count]').forEach(badge=>{const count=$$('[data-cosmetic-choice="'+badge.dataset.cosmeticCount+'"]:checked').length;badge.textContent=String(count);badge.hidden=count===0;});
+    byId('activeAuctionFilters').innerHTML=tags.join('');
+    byId('activeFilterCount').hidden=groups.size===0;byId('activeFilterCount').textContent=String(groups.size);
+    const previewChanged=Boolean(document.querySelector('[data-cosmetic-gender]:checked')) || ($$('[data-required-addon]').length && referenceAddonMask()!==3);
+    byId('clearAuctionFilters').hidden=groups.size===0 && !previewChanged;
+    const rare=byId('filterRareItems');if(rare){const wrapper=rare.closest('[data-filter-section="rare-items"]') || rare.closest('[data-filter-current-only]') || rare.closest('.filter-field');if(wrapper)wrapper.hidden=listingType==='past';}
+    if(byId('filterAllItems'))byId('filterAllItems').closest('label').hidden=listingType==='past';
+    window.BazaarFilterControls?.refresh();
+  }
+  function clearReferenceFilters(){
+    clearTimeout(filterDebounceTimer);
+    const drawer=byId('auctionFilterDrawer');
+    drawer.querySelectorAll('input').forEach(input=>{if(input.type==='checkbox')input.checked=Boolean(input.dataset.requiredAddon || input.dataset.storeAddon);else input.value='';});
+    drawer.querySelectorAll('select').forEach(select=>[...select.options].forEach(option=>option.selected=false));
+    for(const [id,value] of Object.entries(FILTER_DEFAULTS))if(byId(id))byId(id).value=String(value);
+    $$('[data-cosmetic-choice]').forEach(input=>input.parentElement.hidden=false);
+    previousGemSelection=[];refreshGemFilterOptions();updateCosmeticPreview();activeClientFilterState=readClientFilterState();
+    renderActiveFilters();syncReferenceFilterUrl();
+    if(!suppressFilterReload)loadBazaarListings(1);
+  }
+  function removeReferenceFilter(target,value=''){
+    if(target.startsWith('range:')){const row=FILTER_RANGES.find(range=>range[0]===target.slice(6));if(row)for(const id of row.slice(1,3))byId(id).value=String(FILTER_DEFAULTS[id]);}
+    else if(target.startsWith('choice:'))$$('[data-cosmetic-choice="'+target.slice(7)+'"]').forEach(input=>{if(input.value===value)input.checked=false;});
+    else if(target.startsWith('skill:')){const input=document.querySelector('[data-skill-choice="'+target.slice(6)+'"]');if(input)input.checked=false;}
+    else if(target.startsWith('store:') || target.startsWith('misc:')){const colon=target.indexOf(':'),kind=target.slice(0,colon),name=target.slice(colon+1);for(const input of $$('[data-'+kind+'-filter]'))if(input.dataset[kind+'Filter']===name)input.checked=false;}
+    else if(target.startsWith('legacy:')){const input=document.querySelector('[data-cosmetic-filter="'+target.slice(7)+'"]');if(input)input.value='';}
+    else if(byId(target)?.tagName==='SELECT')setFilterSelected(target,value==='*'?[]:filterSelectedValues(target).filter(selected=>selected!==value));
+    else if(byId(target)){const input=byId(target);if(input.type==='checkbox')input.checked=false;else input.value=String(FILTER_DEFAULTS[target] ?? '');}
+    applyReferenceFilterChange(target);
+  }
+  function applyReferenceFilterChange(changedId=''){
+    clearTimeout(filterDebounceTimer);normalizeReferenceRanges(changedId);
+    if(changedId==='filterVocation' || changedId==='filterGems')refreshGemFilterOptions(changedId);
+    updateCosmeticPreview();activeClientFilterState=readClientFilterState();
+    renderActiveFilters();syncReferenceFilterUrl(1);loadBazaarListings(1);
+  }
+  function referenceFilterUrlParams(){
+    const params=new URLSearchParams(window.location.search);
+    const owned=['nicknameFilter','vocation','pvp','battleye','location','skillKey','tags','biddedOnly','rareNick','addon','sex','orderBy',...Object.values(FILTER_MULTI).map(value=>value[0]),...Object.values(FILTER_NUMERIC_KEYS),...Object.values(FILTER_STORE_KEYS),...Object.values(FILTER_COSMETIC_KEYS)];
+    for(const key of owned)params.delete(key);
+    const set=(key,values,strings=true)=>{if(values.length)params.set(key,values.map(value=>strings?encodeURIComponent(value):value).join(','));};
+    const nickname=byId('filterNickname').value.trim();if(nickname)params.set('nicknameFilter',nickname);
+    if(byId('filterBidded').checked)params.set('biddedOnly','true');
+    const maps={filterVocation:{1:0,3:1,4:2,5:3,2:4,6:5},filterPvp:{1:0,0:1,3:2,2:3,4:4},filterBattlEye:{1:'true',2:'false'},filterLocation:{EU:0,NA:1,BR:2,OCE:3}};
+    for(const [id,key] of [['filterVocation','vocation'],['filterPvp','pvp'],['filterBattlEye','battleye'],['filterLocation','location']])set(key,filterGroupValues(id).map(value=>String(maps[id][value])),false);
+    for(const [id,[key]] of Object.entries(FILTER_MULTI))if(id!=='filterRareItems' || listingType==='current'){const values=filterSelectedValues(id);set(key,id==='filterImbuements'?values.map(value=>[...byId(id).options].find(option=>option.value===value)?.textContent || value):values);}
+    for(const [id,key] of Object.entries(FILTER_NUMERIC_KEYS)){const value=filterNumber(id,FILTER_DEFAULTS[id]);if(value!==FILTER_DEFAULTS[id])params.set(key,String(value));}
+    set('skillKey',$$('[data-skill-choice]:checked').map(input=>FILTER_SKILL_KEYS[input.dataset.skillChoice]));
+    set('tags',$$('[data-misc-filter]:checked').map(input=>FILTER_TAG_KEYS[input.dataset.miscFilter]).filter(Boolean));
+    const rareNick=document.querySelector('[data-misc-filter="Rare nicknames"]');if(rareNick?.checked)params.set('rareNick','true');
+    for(const input of $$('[data-store-filter]:checked'))if(FILTER_STORE_KEYS[input.dataset.storeFilter])params.set(FILTER_STORE_KEYS[input.dataset.storeFilter],'true');
+    for(const [section,key] of Object.entries(FILTER_COSMETIC_KEYS))set(key,$$('[data-cosmetic-choice="'+section+'"]:checked').map(input=>input.value));
+    if($$('[data-required-addon]').length && referenceAddonMask()!==3)params.set('addon',String(referenceAddonMask()));
+    if(document.querySelector('[data-cosmetic-gender]:checked'))params.set('sex','true');
+    if(listingType==='past'){params.set('mode','history');params.set('descending','true');}else{
+      params.delete('mode');if(byId('sortAscending').checked)params.set('descending','true');else params.delete('descending');
+      const sort=document.querySelector('input[name="auctionSort"]:checked')?.value;
+      if(sort && sort!=='end')params.set('orderBy',String({level:1,price:2}[sort]));
+    }
+    return params;
+  }
+  function syncReferenceFilterUrl(page=listingPage){
+    if(!window.history?.replaceState || !window.location)return;
+    const params=referenceFilterUrlParams();if(page>1)params.set('currentPage',String(page));else params.delete('currentPage');
+    const query=params.toString();
+    window.history.replaceState(null,'',window.location.pathname+(query?'?'+query:'')+(window.location.hash || ''));
+  }
+  function restoreReferenceFilterUrl(){
+    const params=new URLSearchParams(window.location.search), list=key=>(params.get(key) || '').split(',').filter(Boolean).map(value=>{try{return decodeURIComponent(value);}catch{return value;}});
+    const maps={filterVocation:{0:'1',1:'3',2:'4',3:'5',4:'2',5:'6'},filterPvp:{0:'1',1:'0',2:'3',3:'2',4:'4'},filterBattlEye:{true:'1',false:'2'},filterLocation:{0:'EU',1:'NA',2:'BR',3:'OCE'}};
+    for(const [id,key] of [['filterVocation','vocation'],['filterPvp','pvp'],['filterBattlEye','battleye'],['filterLocation','location']])setFilterSelected(id,list(key).map(value=>maps[id][value]).filter(Boolean));
+    byId('filterNickname').value=params.get('nicknameFilter') || '';
+    byId('filterBidded').checked=params.get('biddedOnly')==='true';
+    refreshGemFilterOptions();
+    for(const [id,[key]] of Object.entries(FILTER_MULTI)){const select=byId(id);const values=list(key).map(value=>[...select.options].find(option=>option.value===value || option.textContent===value)?.value || value);setFilterSelected(id,values,{allowUnknown:id==='filterWorld'});}
+    for(const [id,key] of Object.entries(FILTER_NUMERIC_KEYS))if(params.has(key))byId(id).value=params.get(key);
+    for(const input of $$('[data-skill-choice]'))input.checked=list('skillKey').includes(FILTER_SKILL_KEYS[input.dataset.skillChoice]);
+    for(const input of $$('[data-misc-filter]'))input.checked=input.dataset.miscFilter==='Rare nicknames'?params.get('rareNick')==='true':list('tags').includes(FILTER_TAG_KEYS[input.dataset.miscFilter]);
+    for(const input of $$('[data-store-filter]'))input.checked=params.get(FILTER_STORE_KEYS[input.dataset.storeFilter])==='true';
+    for(const [section,key] of Object.entries(FILTER_COSMETIC_KEYS))for(const input of $$('[data-cosmetic-choice="'+section+'"]'))input.checked=list(key).includes(input.value);
+    const mask=params.has('addon')?Math.max(0,Math.min(3,Number(params.get('addon')) || 0)):3;
+    for(const input of $$('[data-required-addon]'))input.checked=(mask & Number(input.dataset.requiredAddon))!==0;
+    for(const input of $$('[data-cosmetic-gender]'))input.checked=params.get('sex')==='true';
+    if(listingType==='current'){
+      byId('sortAscending').checked=params.get('descending')==='true';
+      const sort={1:'level',2:'price'}[params.get('orderBy')] || 'end';
+      const option=document.querySelector('input[name="auctionSort"][value="'+sort+'"]');if(option)option.checked=true;
+      byId('sortLabel').textContent={level:'Level',price:'Price',end:'Auction End'}[sort];
+    }
+    normalizeReferenceRanges();previousGemSelection=filterSelectedValues('filterGems');updateCosmeticPreview();activeClientFilterState=readClientFilterState();renderActiveFilters();
+    const page=Number(params.get('currentPage'));
+    return Number.isFinite(page)?Math.max(1,Math.trunc(page)):1;
   }
   function prepareReferenceFilters() {
-    const drawer = byId('auctionFilterDrawer');
+    const drawer=byId('auctionFilterDrawer');
     byId('filterToggle').querySelector('span').outerHTML=cardIcon('filter');byId('sortToggle').querySelector('span').outerHTML=cardIcon('sort');
-    const head = drawer.querySelector('.filter-drawer-head'), footer = drawer.querySelector('.filter-drawer-actions');
-    const content = document.createElement('div'); content.className = 'filter-scroll-content';
-    [...drawer.children].filter(e=>e!==head&&e!==footer).forEach(e=>content.append(e));
-    drawer.insertBefore(content,footer);
-    head.insertBefore(byId('closeFilters'),head.firstChild); byId('closeFilters').textContent='←';
-    head.append(byId('clearAuctionFilters')); byId('clearAuctionFilters').textContent='RESET FILTERS';
-    const applyButton = byId("applyAuctionFilters");
-    footer.innerHTML='<span>Bazar Atlas</span>'; footer.append(applyButton);
-    content.prepend(byId('filterBidded').closest('label'));
-    byId('filterNickname').placeholder='Nickname';byId('filterWorld').placeholder='Choose a server';
-    for(const [id,unit] of [['filterLevelMin','Min level'],['filterLevelMax','Max level'],['filterSkillMin','Min skill'],['filterSkillMax','Max skill'],['filterCharmMin','Min charm points'],['filterCharmMax','Max charm points']]){const input=byId(id),label=input.closest('label');if(label.firstChild?.nodeType===3)label.firstChild.textContent=unit;}
-    for(const id of ['filterLevelMin','filterSkillMin','filterCharmMin'])byId(id).closest('fieldset')?.querySelector('legend')?.remove();
-    byId('filterSkill').hidden=true;
-    for (const [id, options] of Object.entries(FILTER_GROUPS)) {
-      const select=byId(id); select.multiple=true; select.hidden=true;
-      select.innerHTML=options.map(([value,label])=>'<option value="'+value+'">'+label+'</option>').join('');
-      const group=document.createElement('div'); group.className='reference-filter-pills';
-      group.innerHTML=options.map(([value,label,image])=>'<label><input type="checkbox" data-filter-group="'+id+'" value="'+value+'"><img src="https://assets.service-exevopan.com/public/assets/'+image+'.png" alt="">'+label+'</label>').join('');
-      select.after(group);
+    const head=drawer.querySelector('.filter-drawer-head'),footer=drawer.querySelector('.filter-drawer-actions');
+    let content=drawer.querySelector('.filter-scroll-content');
+    if(!content){content=document.createElement('div');content.className='filter-scroll-content';[...drawer.children].filter(element=>element!==head && element!==footer).forEach(element=>content.append(element));drawer.insertBefore(content,footer);}
+    head.insertBefore(byId('closeFilters'),head.firstChild);byId('closeFilters').textContent='←';head.append(byId('clearAuctionFilters'));byId('clearAuctionFilters').textContent='RESET FILTERS';
+    if(byId('applyAuctionFilters'))byId('applyAuctionFilters').hidden=true;
+    content.prepend(byId('filterBidded').closest('label'));byId('filterNickname').placeholder='Nickname';if(byId('filterSkill'))byId('filterSkill').hidden=true;
+    for(const [id,options] of Object.entries(FILTER_GROUPS)){
+      const select=byId(id);select.multiple=true;select.hidden=true;select.innerHTML=options.map(([value,label])=>'<option value="'+value+'">'+label+'</option>').join('');
+      const group=document.createElement('div');group.className='reference-filter-pills';group.innerHTML=options.map(([value,label,image])=>'<label><input type="checkbox" role="switch" data-filter-group="'+id+'" value="'+value+'"><img src="https://assets.service-exevopan.com/public/assets/'+image+'.png" alt="">'+label+'</label>').join('');select.after(group);
     }
-    const chips=document.createElement('div');chips.id='activeAuctionFilters';byId('auctionTypeButton').parentElement.after(chips);
-    const overlay=document.createElement('button');overlay.id='filterBackdrop';overlay.hidden=true;overlay.setAttribute('aria-label','Close filters');document.body.append(overlay);
-    let timer;
+    let chips=byId('activeAuctionFilters');if(!chips){chips=document.createElement('div');chips.id='activeAuctionFilters';byId('auctionTypeButton').parentElement.after(chips);}
+    let overlay=byId('filterBackdrop');if(!overlay){overlay=document.createElement('button');overlay.id='filterBackdrop';overlay.hidden=true;overlay.setAttribute('aria-label','Close filters');document.body.append(overlay);}
+    populateReferenceFilterOptions();
     drawer.addEventListener('change',event=>{
-      if(event.target.dataset.cosmeticSearch)return;
-      if(event.target.dataset.cosmeticGender){const section=event.target.dataset.cosmeticGender;document.querySelectorAll('[data-cosmetic-choice="'+section+'"]').forEach(input=>{const image=input.parentElement.querySelector('img');image.src=image.src.replace(/\/(male|female)\//,'/'+(event.target.checked?'female':'male')+'/');});return;}
-      if(event.target.dataset.filterGroup){const select=byId(event.target.dataset.filterGroup);[...select.options].find(o=>o.value===event.target.value).selected=event.target.checked;}
-      renderActiveFilters();clearTimeout(timer);timer=setTimeout(()=>loadBazaarListings(1),180);
+      const input=event.target;if(input.dataset.cosmeticSearch)return;
+      if(input.dataset.cosmeticGender){updateCosmeticPreview(input);renderActiveFilters();syncReferenceFilterUrl();return;}
+      if(input.dataset.filterGroup){const select=byId(input.dataset.filterGroup),option=[...select.options].find(option=>option.value===input.value);if(option)option.selected=input.checked;}
+      if(input.id==='filterAllImbuements' || input.id==='filterAllItems'){
+        const id=input.id==='filterAllImbuements'?'filterImbuements':'filterRareItems';setFilterSelected(id,input.checked?[...byId(id).options].map(option=>option.value).filter(Boolean):[]);
+      }
+      if(input.type==='number' || (input.tagName==='INPUT' && input.type==='text')){clearTimeout(filterDebounceTimer);filterDebounceTimer=setTimeout(()=>applyReferenceFilterChange(input.id),1000);return;}
+      applyReferenceFilterChange(input.dataset.filterGroup || input.id);
     });
-    drawer.addEventListener('input',event=>{if(event.target.dataset.cosmeticSearch){const section=event.target.dataset.cosmeticSearch;document.querySelectorAll('[data-cosmetic-choice="'+section+'"]').forEach(input=>input.parentElement.hidden=!input.value.toLowerCase().includes(event.target.value.toLowerCase()));return;}if(event.target.type==='checkbox')return;renderActiveFilters();clearTimeout(timer);timer=setTimeout(()=>loadBazaarListings(1),400);});
-    chips.addEventListener('click',event=>{
-      const tag=event.target.closest('[data-remove-filter]');if(!tag)return;
-      const id=tag.dataset.removeFilter;
-      if(FILTER_GROUPS[id]) [...byId(id).options].find(o=>o.value===tag.dataset.removeValue).selected=false;
-      else if(id.startsWith('choice:')){document.querySelectorAll('[data-cosmetic-choice="'+id.slice(7)+'"]').forEach(input=>{if(input.value===tag.dataset.removeValue)input.checked=false;});}
-      else if(id.startsWith('addon:')){document.querySelector('[data-required-addon="'+id.slice(6)+'"]').checked=false;}
-      else {const [type,value]=id.split(':');const input=byId(id)||document.querySelector(type==='store'?'[data-store-filter="'+value+'"]':type==='misc'?'[data-misc-filter="'+value+'"]':type==='skill'?'[data-skill-choice="'+value+'"]':'[data-cosmetic-filter="'+value+'"]');if(input){if(input.type==='checkbox')input.checked=false;else input.value=({filterLevelMin:0,filterLevelMax:3000,filterSkillMin:10,filterSkillMax:150,filterCharmMin:0,filterCharmMax:50000})[id]??'';}}
-      renderActiveFilters();loadBazaarListings(1);
+    drawer.addEventListener('input',event=>{
+      const input=event.target;
+      if(input.dataset.cosmeticSearch){$$('[data-cosmetic-choice="'+input.dataset.cosmeticSearch+'"]').forEach(choice=>choice.parentElement.hidden=!normalizedFilterText(choice.value).includes(normalizedFilterText(input.value)));return;}
+      if(input.tagName!=='INPUT' || input.type==='checkbox' || input.dataset.filterSearch)return;
+      clearTimeout(filterDebounceTimer);filterDebounceTimer=setTimeout(()=>applyReferenceFilterChange(input.id),1000);
     });
+    chips.addEventListener('click',event=>{const tag=event.target.closest('[data-remove-filter]');if(tag)removeReferenceFilter(tag.dataset.removeFilter,tag.dataset.removeValue);});
     const observer=new MutationObserver(()=>{overlay.hidden=drawer.hidden;document.body.classList.toggle('filters-open',!drawer.hidden);});observer.observe(drawer,{attributes:true,attributeFilter:['hidden']});
     overlay.addEventListener('click',()=>byId('closeFilters').click());
-    document.addEventListener('keydown',event=>{if(event.key==='Escape'){byId('closeFilters').click();byId('sortMenu').hidden=true;byId('sortToggle').setAttribute('aria-expanded','false');document.querySelectorAll('.auction-context-menu').forEach(menu=>menu.hidden=true);document.querySelectorAll('[data-menu-toggle]').forEach(button=>button.setAttribute('aria-expanded','false'));}});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'){byId('closeFilters').click();byId('sortMenu').hidden=true;byId('sortToggle').setAttribute('aria-expanded','false');$$('.auction-context-menu').forEach(menu=>menu.hidden=true);$$('[data-menu-toggle]').forEach(button=>button.setAttribute('aria-expanded','false'));}});
+    window.BazaarFilterControls?.mount();
   }
 
-  function init() {
-    CATALOG.forEach((quest) => {
-      const option = document.createElement("option");
-      option.value = quest.name;
-      byId("filterQuest").appendChild(option);
-    });
+  async function init() {
+    const initialParams=new URLSearchParams(window.location.search);
+    if(initialParams.get('mode')==='history')listingType='past';
     prepareReferenceFilters();
-    prepareCosmeticPickers();
+    const cosmeticReady=prepareCosmeticPickers();
+    if(['outfitSet','storeOutfitSet','mountSet','storeMountSet','addon','sex'].some(key=>initialParams.has(key)))await cosmeticReady;
+    else cosmeticReady.then(()=>{updateCosmeticPreview();renderActiveFilters();});
     byId("closeAuctionTool").onclick=closeAuctionTool;
     byId("auctionToolDialog").addEventListener("click", event=>{if(event.target===event.currentTarget){const rect=event.currentTarget.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)closeAuctionTool();}});
     installEvents();
@@ -2364,6 +2549,7 @@
       byId('auctionTypeButton').innerHTML = 'Auction history <span>⌄</span>';
     }
     resetAuctionSortDefaults();
+    const initialPage=restoreReferenceFilterUrl();
     renderAll();
     restoreServerReminders();
     setInterval(refreshLocalDatabase,30000);
@@ -2372,7 +2558,7 @@
     setInterval(updateAuctionClocks, 1000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) updateAuctionClocks(); });
     const auctionToOpen = new URLSearchParams(window.location.search).get("auction");
-    loadBazaarListings(1);
+    loadBazaarListings(initialPage);
     loadBazaarMonitor().then(() => {
       if (auctionToOpen) {
         if (bazaarAuctions.some((entry) => String(entry.auctionId) === String(auctionToOpen))) openTrackedAuction(auctionToOpen);

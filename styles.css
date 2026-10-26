@@ -1121,3 +1121,94 @@ body.filters-open { overflow: hidden; }
 
 /* Removed visual chrome; retained hidden controls support existing tracker handlers. */
 .topbar[hidden], .bazaar-monitor-drawer[hidden] { display: none; }
+
+/* Filter drawer and searchable selection controls. */
+.auction-filter-drawer { width: min(620px, 90vw); height: 100vh; height: 100dvh; overflow: hidden; box-shadow: 0 8px 24px #0006; }
+.filter-drawer-head { min-height: 60px; box-shadow: 0 2px 4px #0003; z-index: 2; }
+.filter-drawer-head strong { font-size: 16px; font-weight: 400; letter-spacing: .6px; }
+.filter-drawer-head .drawer-close { display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; line-height: 1; }
+.filter-drawer-head #clearAuctionFilters { display: inline-flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 12px; border-radius: 4px; box-shadow: 0 2px 5px #0002; font: 700 9px/16px BazaarRoboto,Roboto,sans-serif; letter-spacing: .5px; }
+.filter-drawer-head #clearAuctionFilters[hidden] { display: inline-flex !important; visibility: hidden; pointer-events: none; }
+.filter-drawer-head #clearAuctionFilters::after { content: '⟳'; font-size: 23px; line-height: 20px; font-weight: 400; }
+.filter-scroll-content { min-height: 0; overscroll-behavior: contain; padding-top: 16px; padding-bottom: 16px; }
+.filter-scroll-content > :last-child { margin-bottom: 0; border-bottom: 0; }
+.filter-scroll-content .filter-field { color: white; font: 12px/16px BazaarRoboto,Roboto,sans-serif; }
+.filter-scroll-content .filter-field > span:first-child, .filter-scroll-content legend { font-weight: 300; letter-spacing: .1px; }
+.filter-scroll-content .filter-section { display: grid; gap: 12px; }
+.filter-section .filter-field, .filter-section .filter-check { margin: 0; padding: 0; border: 0; }
+.filter-scroll-content input:not([type="checkbox"]), .filter-scroll-content select { height: 36px; line-height: 16px; font: 12px/16px BazaarRoboto,Roboto,sans-serif; padding: 9px 16px; }
+.filter-scroll-content .filter-numeric-field input { width: 128px; }
+.filter-scroll-content #filterTcInvested { width: 144px; }
+.filter-scroll-content #filterGreaterGems { width: 112px; }
+.filter-scroll-content .range-fields { gap: 6px; margin-bottom: 0; }
+.filter-scroll-content .range-fields input { width: 84px; }
+.filter-scroll-content #filterCharmMin, .filter-scroll-content #filterCharmMax { width: 124px; }
+.filter-scroll-content .range-fields label { grid-template-columns: 1fr; gap: 8px; color: white; font-weight: 300; }
+.filter-scroll-content .filter-range-legend { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.filter-scroll-content [data-filter-section="imbuements"] { grid-template-columns: 200px max-content; gap: 16px; align-items: start; }
+.filter-scroll-content [data-filter-section="imbuements"] > .filter-bulk-toggle { margin-top: 24px; }
+.filter-scroll-content input:invalid, .filter-scroll-content input[aria-invalid="true"] { border-color: #e85959; }
+.filter-scroll-content input[type="checkbox"]:not([role="switch"]) { appearance: none; display: inline-grid; place-items: center; width: 16px; height: 16px; min-height: 16px; margin: 0 6px 0 0; padding: 0; border: 1px solid #72767d; border-radius: 4px; background: #36393f; flex: 0 0 16px; cursor: pointer; }
+.filter-scroll-content input[type="checkbox"]:not([role="switch"]):checked { background: #8b63e3; border-color: #8b63e3; }
+.filter-scroll-content input[type="checkbox"]:not([role="switch"]):checked::after { content: '✓'; color: white; font: 12px/1 Arial,sans-serif; }
+.filter-scroll-content input[type="checkbox"]:disabled { cursor: default; opacity: .65; }
+.filter-scroll-content .filter-check-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px 12px; }
+.filter-scroll-content .filter-check { gap: 0; align-items: center; font: 12px/16px BazaarRoboto,Roboto,sans-serif; }
+.reference-filter-pills label, .skill-filter-choices .filter-check, .filter-misc-section .filter-check, .filter-scroll-content .filter-bulk-toggle { position: relative; display: inline-flex; width: fit-content; min-height: 26px; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; background: #664b80; color: #fff; cursor: pointer; font: 12px/14px BazaarRoboto,Roboto,sans-serif; white-space: nowrap; }
+.reference-filter-pills label:has(input:checked), .skill-filter-choices .filter-check:has(input:checked), .filter-misc-section .filter-check:has(input:checked), .filter-bulk-toggle:has(input:checked) { background: #8b63e3; }
+.reference-filter-pills input, .skill-filter-choices input, .filter-misc-section input, .filter-bulk-toggle input { position: absolute; width: 1px !important; min-height: 1px !important; height: 1px !important; opacity: 0; margin: 0; }
+.reference-filter-pills label:has(input:focus-visible), .skill-filter-choices label:has(input:focus-visible), .filter-misc-section label:has(input:focus-visible), .filter-bulk-toggle:has(input:focus-visible) { outline: 2px solid #c69be9; outline-offset: 2px; }
+.filter-scroll-content .skill-filter-choices, .filter-scroll-content .filter-misc-section .filter-check-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.skill-filter-choices { margin-top: 16px; padding-top: 0; border-top: 0; }
+.skill-filter-choices .filter-check { padding-block: 5px; }
+.skill-filter-choices label > img { width: 16px; height: 16px; object-fit: contain; }
+.filter-scroll-content .filter-accordion summary { padding: 0; min-height: 28px; }
+.filter-scroll-content .filter-accordion summary::after { font-size: 20px; color: #d9dadd; }
+.filter-drawer-actions { min-height: 60px; padding-top: 12px; padding-bottom: 12px; display: flex; align-items: center; font: 300 14px/20px BazaarRoboto,Roboto,sans-serif; }
+.filter-drawer-actions #applyAuctionFilters { display: none !important; }
+.filter-drawer-brand { display: inline-flex; align-items: center; gap: 16px; }
+.filter-drawer-brand > span { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid #c69be9; border-radius: 5px; background: #664b80; font-weight: 700; }
+.filter-info { font-size: 12px; cursor: help; }
+.filter-multiselect { width: min(var(--filter-control-width,200px),100%); max-width: 100%; position: relative; font: 12px/16px BazaarRoboto,Roboto,sans-serif; }
+.filter-multiselect.is-open { z-index: 5; }
+.filter-combobox-control, .filter-text-control { display: flex; align-items: center; width: min(var(--filter-control-width,200px),100%); min-height: 36px; border: 1px solid #72767d; border-radius: 5px; background: #36393f; transition: border-color .15s; }
+.filter-combobox-control { width: 100%; }
+.filter-combobox-control:focus-within, .filter-text-control:focus-within { border-color: #8b63e3; }
+.filter-scroll-content .filter-combobox-control input, .filter-scroll-content .filter-text-control input { width: 0; max-width: none; min-width: 0; height: 34px; min-height: 34px; flex: 1; margin: 0; border: 0; border-radius: 4px; background: transparent; padding: 9px 0 9px 16px; outline: none; box-shadow: none; }
+.cosmetic-picker-options [role="switch"] { margin: 0; }
+.filter-scroll-content .filter-input-clear { display: grid; place-items: center; width: 40px; height: 34px; flex: 0 0 40px; min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 4px; background: transparent; color: #e8e8e8; font: 21px/1 Arial,sans-serif; cursor: pointer; }
+.filter-scroll-content .filter-input-clear[aria-hidden="true"] { visibility: hidden; }
+.filter-scroll-content .filter-input-clear:hover { color: white; }
+.filter-multiselect.is-disabled .filter-combobox-control { background: #72767d80; cursor: not-allowed; }
+.filter-multiselect.is-disabled input { cursor: not-allowed; opacity: .6; }
+.filter-combobox-list { position: absolute; top: 40px; left: 0; right: 0; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; padding: 4px 0; background: #36393f; border: 1px solid #72767d; border-radius: 5px; box-shadow: 0 4px 12px #0008; scrollbar-width: thin; scrollbar-color: #664b80 #36393f; }
+.filter-combobox-option { display: flex; gap: 8px; align-items: center; min-height: 32px; padding: 8px 12px; cursor: pointer; overflow-wrap: anywhere; }
+.filter-combobox-option.is-highlighted, .filter-combobox-option:hover { background: #664b80; }
+.filter-combobox-option[aria-disabled="true"] { opacity: .45; cursor: default; }
+.filter-combobox-option img { width: 16px; height: 16px; object-fit: contain; }
+.filter-combobox-empty { padding: 9px 12px; color: #b9bbbe; font-style: italic; }
+.filter-selected-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; width: max-content; max-width: min(530px,calc(90vw - 80px)); }
+.filter-selection-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 26px; max-width: 100%; padding: 5px 10px; border: 0; border-radius: 8px; background: #664b80; color: white; cursor: pointer; font: 12px/16px BazaarRoboto,Roboto,sans-serif; }
+.filter-selection-chip > span:first-child { min-width: 0; overflow-wrap: anywhere; text-align: left; }
+.filter-chip-remove { display: inline-grid; place-items: center; flex: 0 0 15px; width: 15px; height: 15px; border: 1px solid #c69be9; border-radius: 50%; color: #e8c2ff; font: 12px/12px Arial,sans-serif; }
+.filter-selection-chip:hover { background: #76578f; }
+.filter-selection-chip:focus-visible { outline: 2px solid #c69be9; outline-offset: 2px; }
+.filter-multiselect [hidden] { display: none !important; }
+.cosmetic-filter-tile { border: 2px solid transparent; overflow: visible; }
+.cosmetic-filter-tile:has(input:checked) { background: #b286ec; border-color: #b286ec; outline: 0; }
+.cosmetic-filter-tile:has(input:focus-visible) { border-color: white; outline: 0; }
+/* Canvas origin: border 2 - 16 = -14px, equivalent to reference border 2 + padding 8 - margin 24. */
+.cosmetic-filter-tile > .sprite-stage { left: 0; top: 0; width: 52px; height: 52px; }
+.cosmetic-filter-tile > .sprite-stage > img[data-sprite-image] { width: 64px; height: 64px; left: -16px; top: -16px; margin: 0; }
+@media(max-width:700px) {
+  .filter-drawer-head, .filter-drawer-actions { padding-left: 16px; padding-right: 16px; }
+  .filter-drawer-head { gap: 12px; }
+  .filter-scroll-content { padding-left: 16px; padding-right: 16px; }
+  .filter-selected-options { max-width: calc(90vw - 32px); }
+}
+@media(max-width:420px) {
+  .filter-scroll-content .filter-check-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .filter-scroll-content [data-filter-section="imbuements"] { grid-template-columns: 1fr; gap: 12px; }
+  .filter-scroll-content [data-filter-section="imbuements"] > .filter-bulk-toggle { margin-top: 0; }
+  .filter-drawer-head #clearAuctionFilters { padding-inline: 6px; font-size: 8px; }
+}

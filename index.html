@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=e19c2ff6a21d44c4">
+    <link rel="stylesheet" href="./styles.css?v=7b4d3b7ddcc9f832">
   </head>
   <body>
     <div class="app-shell">
@@ -79,7 +79,7 @@
               </div>
             </div>
 
-            <aside id="auctionFilterDrawer" class="auction-filter-drawer" hidden aria-label="Filtros do Char Bazaar">
+            <aside id="auctionFilterDrawer" class="auction-filter-drawer" hidden role="dialog" aria-modal="true" aria-label="Filter form" tabindex="-1">
               <div class="filter-drawer-head"><strong>Filters</strong><button id="closeFilters" class="drawer-close" aria-label="Fechar filtros">×</button></div>
               <label class="filter-field"><span>Search nickname</span><input id="filterNickname" placeholder="Character name"></label>
               <label class="filter-check"><input id="filterBidded" type="checkbox"><span>Bidded only</span></label>
@@ -87,7 +87,7 @@
               <fieldset><legend>PvP</legend><select id="filterPvp"><option value="">All PvP types</option><option value="1">Optional</option><option value="0">Open</option><option value="3">Retro Open</option><option value="2">Hardcore</option><option value="4">Retro Hardcore</option></select></fieldset>
               <fieldset><legend>BattlEye</legend><select id="filterBattlEye"><option value="">All BattlEye states</option><option value="1">Initially protected</option><option value="2">Protected</option><option value="3">Not protected</option></select></fieldset>
               <fieldset><legend>Server location</legend><select id="filterLocation"><option value="">All locations</option><option>EU</option><option>NA</option><option>BR</option><option>OCE</option></select></fieldset>
-              <label class="filter-field"><span>Server</span><input id="filterWorld" list="bazaarWorlds" placeholder="All worlds"><datalist id="bazaarWorlds"></datalist></label>
+              <div class="filter-field"><span>Server</span><select id="filterWorld" multiple hidden data-filter-multi data-label="Server" data-placeholder="Choose a server"></select><datalist id="bazaarWorlds"></datalist></div>
               <fieldset><legend>Store items</legend><div class="filter-check-grid">
                 <label class="filter-check"><input data-store-filter="Training Dummy" type="checkbox">Training Dummy</label><label class="filter-check"><input data-store-filter="Charm Expansion" type="checkbox">Charm Expansion</label>
                 <label class="filter-check"><input data-store-filter="Imbuement Shrine" type="checkbox">Imbuement Shrine</label><label class="filter-check"><input data-store-filter="Gold Pouch" type="checkbox">Gold Pouch</label>
@@ -95,33 +95,33 @@
                 <label class="filter-check"><input data-store-filter="Hirelings" type="checkbox">Hirelings</label><label class="filter-check"><input data-store-filter="Weekly Task Expansion" type="checkbox">Weekly Task Expansion</label>
                 <label class="filter-check"><input data-store-filter="Mailbox" type="checkbox">Mailbox</label><label class="filter-check"><input data-store-filter="Regular World Transfer" type="checkbox">Regular world transfer</label>
               </div></fieldset>
-              <fieldset><legend>Level range</legend><div class="range-fields"><label>Min <input id="filterLevelMin" type="number" min="0" value="0"></label><label>Max <input id="filterLevelMax" type="number" min="0" value="3000"></label></div></fieldset>
-              <fieldset><legend>Skill range</legend><div class="range-fields"><label>Min <input id="filterSkillMin" type="number" min="0" value="10"></label><label>Max <input id="filterSkillMax" type="number" min="0" value="150"></label></div><div class="filter-check-grid skill-filter-choices"><label class="filter-check"><input data-skill-choice="1" type="checkbox">Magic</label><label class="filter-check"><input data-skill-choice="7" type="checkbox">Distance</label><label class="filter-check"><input data-skill-choice="9" type="checkbox">Club</label><label class="filter-check"><input data-skill-choice="8" type="checkbox">Sword</label><label class="filter-check"><input data-skill-choice="10" type="checkbox">Axe</label><label class="filter-check"><input data-skill-choice="11" type="checkbox">Fist</label><label class="filter-check"><input data-skill-choice="6" type="checkbox">Shield</label><label class="filter-check"><input data-skill-choice="13" type="checkbox">Fishing</label></div><select id="filterSkill"><option value="">Any skill</option><option value="1">Magic</option><option value="7">Distance</option><option value="9">Club</option><option value="8">Sword</option><option value="10">Axe</option><option value="11">Fist</option><option value="6">Shield</option><option value="13">Fishing</option></select></fieldset>
+              <fieldset><legend class="filter-range-legend">Level range</legend><div class="range-fields"><label>Min level <input id="filterLevelMin" type="number" min="0" value="0"></label><label>Max level <input id="filterLevelMax" type="number" min="0" value="3000"></label></div></fieldset>
+              <fieldset><legend class="filter-range-legend">Skill range</legend><div class="range-fields"><label>Min skill <input id="filterSkillMin" type="number" min="0" value="10"></label><label>Max skill <input id="filterSkillMax" type="number" min="0" value="150"></label></div><div class="filter-check-grid skill-filter-choices"><label class="filter-check"><input data-skill-choice="1" type="checkbox"><img src="https://assets.service-exevopan.com/public/assets/magic.png" alt="">Magic</label><label class="filter-check"><input data-skill-choice="7" type="checkbox"><img src="https://assets.service-exevopan.com/public/assets/distance.png" alt="">Distance</label><label class="filter-check"><input data-skill-choice="9" type="checkbox"><img src="https://assets.service-exevopan.com/public/assets/club.png" alt="">Club</label><label class="filter-check"><input data-skill-choice="8" type="checkbox"><img src="https://assets.service-exevopan.com/public/assets/sword.png" alt="">Sword</label><label class="filter-check"><input data-skill-choice="10" type="checkbox"><img src="https://assets.service-exevopan.com/public/assets/axe.png" alt="">Axe</label><label class="filter-check"><input data-skill-choice="11" type="checkbox"><img src="https://assets.service-exevopan.com/public/assets/fist.png" alt="">Fist</label><label class="filter-check"><input data-skill-choice="6" type="checkbox"><img src="https://assets.service-exevopan.com/public/assets/shield.png" alt="">Shield</label></div><select id="filterSkill" hidden><option value="">Any skill</option><option value="1">Magic</option><option value="7">Distance</option><option value="9">Club</option><option value="8">Sword</option><option value="10">Axe</option><option value="11">Fist</option><option value="6">Shield</option><option value="13">Fishing</option></select></fieldset>
               <details class="filter-accordion"><summary>Outfits</summary><input data-cosmetic-filter="Outfits" placeholder="Outfit name"></details>
               <details class="filter-accordion"><summary>Store Outfits</summary><input data-cosmetic-filter="StoreOutfits" placeholder="Store outfit name"></details>
               <details class="filter-accordion"><summary>Mounts</summary><input data-cosmetic-filter="Mounts" placeholder="Mount name"></details>
               <details class="filter-accordion"><summary>Store Mounts</summary><input data-cosmetic-filter="StoreMounts" placeholder="Store mount name"></details>
-              <label class="filter-field"><span>Bounty Points</span><input id="filterBountyPoints" type="number" min="0" placeholder="0"></label>
-              <label class="filter-field"><span>Boss Points</span><input id="filterBossPoints" type="number" min="0" placeholder="0"></label>
-              <label class="filter-field"><span>Tibia Coins invested</span><input id="filterTcInvested" type="number" min="0" placeholder="Minimum"></label>
-              <label class="filter-field"><span>Imbuements</span><select id="filterImbuements"><option value="">Any</option><option value="all">All imbuements</option><option value="20">20 or more</option></select></label>
-              <label class="filter-check"><input id="filterAllImbuements" type="checkbox"><span>All imbuements</span></label>
-              <fieldset><legend>Charm points</legend><div class="range-fields"><label>Min <input id="filterCharmMin" type="number" min="0" value="0"></label><label>Max <input id="filterCharmMax" type="number" min="0" value="50000"></label></div></fieldset>
-              <label class="filter-field"><span>Supreme Gems</span><input id="filterGems" placeholder="Any gem"></label>
-              <label class="filter-field"><span>Min Greater Gems</span><input id="filterGreaterGems" type="number" min="0" placeholder="0"></label>
-              <label class="filter-field"><span>Quest</span><select id="filterQuest"><option value="">Any quest</option></select></label>
-              <label class="filter-field"><span>Achievement points</span><input id="filterAchievements" type="number" min="0" placeholder="Minimum"></label>
-              <label class="filter-field"><span>Rare achievements</span><input id="filterRareAchievements" placeholder="Achievement name"></label>
-              <label class="filter-field"><span>Rare items</span><input id="filterRareItems" placeholder="Item name"></label>
-              <label class="filter-check"><input id="filterAllItems" type="checkbox"><span>All items</span></label>
-              <fieldset><legend>Misc</legend><div class="filter-check-grid">
+              <label class="filter-field filter-numeric-field"><span>Bounty Points</span><input id="filterBountyPoints" type="number" min="0" placeholder="0"></label>
+              <label class="filter-field filter-numeric-field"><span>Boss Points</span><input id="filterBossPoints" type="number" min="0" placeholder="0"></label>
+              <label class="filter-field filter-numeric-field"><span>Tibia Coins invested</span><input id="filterTcInvested" type="number" min="0" placeholder="0"></label>
+              <section class="filter-section" data-filter-section="imbuements"><div class="filter-field"><span>Imbuements</span><select id="filterImbuements" multiple hidden data-filter-multi data-label="Imbuements" data-placeholder="Select imbuements"></select></div>
+              <label class="filter-check filter-bulk-toggle"><input id="filterAllImbuements" type="checkbox"><span>All imbuements</span></label></section>
+              <fieldset><legend class="filter-range-legend">Charm points</legend><div class="range-fields"><label>Min charm points <input id="filterCharmMin" type="number" min="0" value="0"></label><label>Max charm points <input id="filterCharmMax" type="number" min="0" value="50000"></label></div></fieldset>
+              <section class="filter-section" data-filter-section="gems"><div class="filter-field"><span>Supreme Gems</span><select id="filterGems" multiple hidden data-filter-multi data-label="Supreme Gems" data-placeholder="Select supreme gems" data-width="340"></select></div>
+              <label class="filter-field filter-numeric-field"><span>Min Greater Gems</span><input id="filterGreaterGems" type="number" min="0" placeholder="0"></label></section>
+              <div class="filter-field"><span>Quests</span><select id="filterQuest" multiple hidden data-filter-multi data-label="Quests" data-placeholder="Select quests"></select></div>
+              <label class="filter-field filter-numeric-field"><span>Achievement points</span><input id="filterAchievements" type="number" min="0" placeholder="0"></label>
+              <div class="filter-field"><span>Rare achievements</span><select id="filterRareAchievements" multiple hidden data-filter-multi data-label="Rare achievements" data-placeholder="Select achievements"></select></div>
+              <section class="filter-section" data-filter-section="rare-items"><div class="filter-field"><span title="Search items shown in the auction preview">Rare items <span class="filter-info" aria-label="Search items shown in the auction preview">ⓘ</span></span><select id="filterRareItems" multiple hidden data-filter-multi data-label="Rare items" data-placeholder="Choose an item"></select></div>
+              <label class="filter-check filter-bulk-toggle"><input id="filterAllItems" type="checkbox"><span>All items</span></label></section>
+              <fieldset class="filter-misc-section"><legend>Misc</legend><div class="filter-check-grid">
                 <label class="filter-check"><input data-misc-filter="Soul War available" type="checkbox">Soul War available 💀</label><label class="filter-check"><input data-misc-filter="Primal Ordeal available" type="checkbox">Primal Ordeal available 🦖</label>
                 <label class="filter-check"><input data-misc-filter="Rare nicknames" type="checkbox">Rare nicknames</label><label class="filter-check"><input data-misc-filter="Many charms" type="checkbox">Many charms</label>
                 <label class="filter-check"><input data-misc-filter="Many quests" type="checkbox">Many quests</label><label class="filter-check"><input data-misc-filter="Many mounts" type="checkbox">Many mounts</label>
                 <label class="filter-check"><input data-misc-filter="Many store cosmetics" type="checkbox">Many store cosmetics 🛍️</label><label class="filter-check"><input data-misc-filter="Rare mounts" type="checkbox">Rare mounts ✨</label>
                 <label class="filter-check"><input data-misc-filter="Rare outfits" type="checkbox">Rare outfits 💎</label><label class="filter-check"><input data-misc-filter="Secondary skill" type="checkbox">Secondary skill ⚔️</label>
               </div></fieldset>
-              <div class="filter-drawer-actions"><button id="clearAuctionFilters" class="list-control">Clear all</button><button id="applyAuctionFilters" class="button button-primary button-small">Apply filters</button></div>
+              <div class="filter-drawer-actions"><button id="clearAuctionFilters" class="list-control">Clear all</button><button id="applyAuctionFilters" class="button button-primary button-small">Apply filters</button><span class="filter-drawer-brand"><span aria-hidden="true">B</span>Bazar Atlas</span></div>
             </aside>
 
             <div id="auctionGrid" class="auction-grid" aria-live="polite"><div class="listing-loading">Loading auctions…</div></div>
@@ -294,10 +294,12 @@
     <dialog id="auctionToolDialog" class="auction-tool-dialog"><header><h2 id="auctionToolTitle"></h2><button id="closeAuctionTool" aria-label="Close dialog">×</button></header><div id="auctionToolBody"></div></dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script>window.BAZAAR_BUILD_ID="552b7642d73e55d1";</script>
+    <script>window.BAZAAR_BUILD_ID="7baadfddf6f36491";</script>
     <script src="./pages-api.js?v=7470f255b002f5d0"></script>
     <script src="./quests.js?v=25e00fc69351c577"></script>
     <script src="./bazaar-icons.js?v=aa1642e98cf397e7"></script>
-    <script src="./app.js?v=24ad719c11575a55"></script>
+    <script src="./filter-catalog.js?v=b0ab50a0aeccd281"></script>
+    <script src="./filter-controls.js?v=c9afa98d08fa1553"></script>
+    <script src="./app.js?v=2988dc4484724999"></script>
   </body>
 </html>

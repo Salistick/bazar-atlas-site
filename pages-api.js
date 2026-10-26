@@ -22,13 +22,19 @@
   const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
   const deadline=value=>{
     const text=String(value || '').replace(/\s+/g,' ').trim();
-    if(/^\d{4}-\d{2}-\d{2}T/.test(text)) return Date.parse(text);
-    const match=text.match(/^([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4}),\s+(\d{1,2}:\d{2})\s+(CEST|CET)$/);
-    if(!match)return NaN;
-    const month=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(match[1])+1;
-    return Date.parse(match[3]+'-'+String(month).padStart(2,'0')+'-'+match[2].padStart(2,'0')+'T'+match[4].padStart(5,'0')+':00'+(match[5]==='CEST'?'+02:00':'+01:00'));
+    const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const official=text.match(/^([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4}),\s+(\d{1,2}):(\d{2})\s+(CEST|CET)$/);
+    const normalized=official?official[3]+'-'+String(months.indexOf(official[1])+1).padStart(2,'0')+'-'+official[2].padStart(2,'0')+'T'+official[4].padStart(2,'0')+':'+official[5]+':00'+(official[6]==='CEST'?'+02:00':'+01:00'):text;
+    const iso=normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/);
+    if(!iso)return NaN;
+    const [year,month,day,hour,minute,second]=iso.slice(1,7).map(value=>Number(value||0));
+    if(year<1970||month<1||month>12||day<1||day>new Date(Date.UTC(year,month,0)).getUTCDate()||hour>23||minute>59||second>59)return NaN;
+    return Date.parse(normalized);
   };
   const expired=card=>Number.isFinite(deadline(card.end))&&deadline(card.end)<=Date.now();
+  const active=card=>Number.isFinite(deadline(card.end))&&deadline(card.end)>Date.now();
+  const validHistory=card=>expired(card)&&(!card.snapshot?.auction?.end||deadline(card.snapshot.auction.end)===deadline(card.end));
+  const newestFirst=(a,b)=>deadline(b.end)-deadline(a.end)||Number(b.id)-Number(a.id);
   const pendingResult={resultStatus:'pending',paymentConfirmed:false,finalBid:null,
     sourceStatus:'',sold:false,cancelled:false,finished:false,finalResultPending:true};
   function historicalSnapshot(snapshot){
@@ -41,23 +47,23 @@
   }
   async function projectedCoverage(){
     const [source,lookup]=await Promise.all([data('coverage'),data('lookup')]);
-    const active=lookup.filter(card=>card.type==='current'&&!expired(card));
-    const history=new Set(lookup.filter(card=>card.type==='past').map(card=>String(card.id)));
+    const activeCards=lookup.filter(card=>card.type==='current'&&active(card));
+    const history=new Set(lookup.filter(card=>card.type==='past'&&expired(card)).map(card=>String(card.id)));
     for(const card of lookup)if(card.type==='current'&&expired(card)&&card.snapshotComplete===true)history.add(String(card.id));
-    const upcoming=active.map(card=>deadline(card.end)).filter(value=>Number.isFinite(value)&&value>Date.now());
-    return {...source,active:active.length,downloaded:active.filter(card=>card.snapshotComplete===true).length,history:history.size,
+    const upcoming=activeCards.map(card=>deadline(card.end));
+    return {...source,active:activeCards.length,downloaded:activeCards.filter(card=>card.snapshotComplete===true).length,history:history.size,
       nextExpiryAt:upcoming.length?Math.min(...upcoming):null};
   }
   async function projectedIndex(kind){
     const [index,current,coverage]=await Promise.all([data('index-'+kind),data('index-current'),projectedCoverage()]);
     let auctions;
-    if(kind==='current')auctions=current.auctions.filter(card=>!expired(card));
+    if(kind==='current')auctions=current.auctions.filter(active);
     else{
-      const merged=new Map(index.auctions.map(card=>[String(card.id),card]));
+      const merged=new Map(index.auctions.filter(validHistory).map(card=>[String(card.id),card]));
       for(const card of current.auctions){
-        if(expired(card)&&card.snapshotComplete===true&&!merged.has(String(card.id)))merged.set(String(card.id),historicalCard(card));
+        if(validHistory(card)&&card.snapshotComplete===true&&!merged.has(String(card.id)))merged.set(String(card.id),historicalCard(card));
       }
-      auctions=[...merged.values()];
+      auctions=[...merged.values()].sort(newestFirst);
     }
     return {...index,auctions,total:auctions.length,coverage,nextExpiryAt:coverage.nextExpiryAt,
       worlds:[...new Set(auctions.map(card=>card.world).filter(Boolean))].sort()};
@@ -66,6 +72,7 @@
     const [result,lookup]=await Promise.all([data('details/'+id),data('lookup')]);
     const card=lookup.find(item=>String(item.id)===String(id)&&item.type==='past') ||
       lookup.find(item=>String(item.id)===String(id));
+    if(card?.type==='past'&&!validHistory({...card,snapshot:result.snapshot}))throw new Error('A data de encerramento deste histórico não passou na validação.');
     return card?.type==='current'&&card.snapshotComplete===true&&expired(card)
       ? {...result,snapshot:historicalSnapshot(result.snapshot)} : result;
   }

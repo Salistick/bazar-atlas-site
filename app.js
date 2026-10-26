@@ -432,37 +432,57 @@
 
   function auctionDeadline(value) {
     const text = String(value || '').replace(/\s+/g, ' ').trim();
-    if (/^\d{4}-\d{2}-\d{2}T/.test(text)) return Date.parse(text);
-    const match = text.match(/^([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4}),\s+(\d{1,2}:\d{2})\s+(CEST|CET)$/);
-    if (!match) return NaN;
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return Date.parse(match[3] + '-' + String(months.indexOf(match[1]) + 1).padStart(2,'0') + '-' + match[2].padStart(2,'0') + 'T' + match[4].padStart(5,'0') + ':00' + (match[5] === 'CEST' ? '+02:00' : '+01:00'));
+    const official = text.match(/^([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4}),\s+(\d{1,2}):(\d{2})\s+(CEST|CET)$/);
+    const normalized = official ? official[3] + '-' + String(months.indexOf(official[1]) + 1).padStart(2,'0') + '-' + official[2].padStart(2,'0') + 'T' + official[4].padStart(2,'0') + ':' + official[5] + ':00' + (official[6] === 'CEST' ? '+02:00' : '+01:00') : text;
+    const iso = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/);
+    if (!iso) return NaN;
+    const [year,month,day,hour,minute,second] = iso.slice(1,7).map(value=>Number(value || 0));
+    if (year < 1970 || month < 1 || month > 12 || day < 1 || day > new Date(Date.UTC(year,month,0)).getUTCDate() || hour > 23 || minute > 59 || second > 59) return NaN;
+    return Date.parse(normalized);
+  }
+
+  function auctionLocalParts(deadline) {
+    const parts = new Intl.DateTimeFormat('en-GB', {timeZone:'America/Sao_Paulo',day:'numeric',month:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(deadline));
+    const part = type => parts.find(value => value.type === type).value;
+    return {day:Number(part('day')),month:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(part('month'))-1],year:part('year'),clock:Number(part('hour')) + ':' + part('minute')};
+  }
+
+  function validHistoricalAuction(card, now = Date.now()) {
+    const ended = auctionDeadline(card.end);
+    if (!Number.isFinite(ended) || ended > now) return false;
+    const snapshotEnd = card.snapshot?.auction?.end;
+    return !snapshotEnd || auctionDeadline(snapshotEnd) === ended;
+  }
+
+  function sortAuctionCards(cards, filters) {
+    if (listingType === 'past') return cards.sort((a,b)=>auctionDeadline(b.end)-auctionDeadline(a.end) || Number(b.id)-Number(a.id));
+    const value=card=>filters.sort==='level'?Number(card.level || 0):filters.sort==='price'?Number(String(card.currentBid || card.minimumBid || 0).replace(/,/g,'')):auctionDeadline(card.end);
+    const direction=filters.ascending==='true'?1:-1;
+    return cards.sort((a,b)=>(value(a)-value(b) || Number(a.id)-Number(b.id))*direction);
   }
 
   function historicalAuctionEndMarkup(value) {
     const deadline = auctionDeadline(value);
-    if (!Number.isFinite(deadline)) return escapeHtml(value || '—');
-    const date = new Date(deadline);
-    const parts = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Berlin',day:'numeric',month:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hourCycle:'h23'}).formatToParts(date);
-    const part = type => parts.find(value => value.type === type).value;
-    const month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(part('month'))-1];
-    const label = Number(part('day')) + ' ' + month + ' ' + part('year') + ', ' + Number(part('hour')) + ':' + part('minute');
-    return '<span class="auction-history-end">' + escapeHtml(label) + '</span>';
+    if (!Number.isFinite(deadline) || deadline > Date.now()) return '—';
+    const local = auctionLocalParts(deadline);
+    const label = local.day + ' ' + local.month + ' ' + local.year + ', ' + local.clock;
+    return '<span class="auction-history-end" title="Brasília (GMT-3)">' + escapeHtml(label) + '</span>';
   }
 
   function auctionEndMarkup(value, historical = false) {
     if (historical) return historicalAuctionEndMarkup(value);
     const deadline = auctionDeadline(value);
     if (!Number.isFinite(deadline)) return escapeHtml(value || '—');
-    const date = new Date(deadline), seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-    const clock = date.toLocaleTimeString('en-GB', {hour:'numeric', minute:'2-digit'});
+    const local = auctionLocalParts(deadline), seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    const clock = local.clock;
     if (deadline <= Date.now()) return '<span class="auction-ended">Auction Ended!</span>';
     if (deadline - Date.now() <= 86400000) {
       const hours = Math.floor(seconds / 3600), minutes = Math.floor(seconds / 60) % 60;
       const countdown = hours ? hours + 'h ' + minutes + 'm' : minutes + 'm ' + seconds % 60 + 's';
       return '<span class="auction-ending-soon">' + countdown + '</span>, ' + clock;
     }
-    return date.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()] + ', ' + clock;
+    return local.day + ' ' + local.month + ', ' + clock;
   }
 
   function updateAuctionClocks() {
@@ -968,8 +988,8 @@
       skillMin: byId("filterSkillMin").value,
       skillMax: byId("filterSkillMax").value,
       skillId: $$("[data-skill-choice]:checked").map(input=>input.dataset.skillChoice).join(",") || byId("filterSkill").value,
-      sort: document.querySelector('input[name="auctionSort"]:checked')?.value || "end",
-      ascending: byId("sortAscending").checked ? "false" : "true"
+      sort: listingType === 'past' ? 'end' : document.querySelector('input[name="auctionSort"]:checked')?.value || "end",
+      ascending: listingType === 'past' || byId("sortAscending").checked ? "false" : "true"
     };
     listingFilters = filters;
     return filters;
@@ -1016,7 +1036,8 @@
     }
     if(filters.world&&String(card.world).toLowerCase()!==filters.world.toLowerCase())return false;
     if(filters.nickname&&!String(card.name).toLowerCase().includes(filters.nickname.toLowerCase()))return false;
-    if(listingType==='current'&&auctionDeadline(card.end)<=Date.now())return false;
+    if(listingType==='past'&&!validHistoricalAuction(card))return false;
+    if(listingType==='current'&&(!Number.isFinite(auctionDeadline(card.end))||auctionDeadline(card.end)<=Date.now()))return false;
     return true;
   }
   function showDatabaseCoverage(coverage) {
@@ -1070,9 +1091,7 @@
         ['filterImbuements','filterQuest','filterRareAchievements','filterRareItems','filterGems'].some(id=>byId(id).value.trim()) ||
         byId('filterAllImbuements').checked || $$('[data-cosmetic-choice]:checked,[data-store-filter]:checked,[data-misc-filter]:checked,[data-skill-choice]:checked').length || byId('filterSkill').value;
       const matching=index.auctions.filter(card=>localNativeMatch(card,filters)&&cardMatchesClientFilters(card,card.snapshot));
-      const sortValue=card=>filters.sort==='level'?Number(card.level || 0):filters.sort==='price'?Number(card.currentBid || card.minimumBid || 0):auctionDeadline(card.end);
-      const direction=filters.ascending==='true'?1:-1;
-      matching.sort((a,b)=>(sortValue(a)-sortValue(b) || Number(a.id)-Number(b.id))*direction);
+      sortAuctionCards(matching,filters);
       const pages=Math.ceil(matching.length/AUCTIONS_PER_PAGE);
       listingPage=Math.max(1,Math.min(listingPage,pages || 1));
       result={auctions:matching.slice((listingPage-1)*AUCTIONS_PER_PAGE,listingPage*AUCTIONS_PER_PAGE),total:matching.length,totalPages:pages,worlds:index.worlds};
@@ -1945,6 +1964,8 @@
 
   function resetAuctionSortDefaults() {
     byId('sortAscending').checked = listingType === 'past';
+    byId('sortAscending').disabled = listingType === 'past';
+    document.querySelectorAll('input[name="auctionSort"]').forEach(input=>input.disabled = listingType === 'past');
     document.querySelector('input[name="auctionSort"][value="end"]').checked = true;
     byId('sortLabel').textContent = 'Auction End';
   }
@@ -2338,6 +2359,11 @@
     byId("closeAuctionTool").onclick=closeAuctionTool;
     byId("auctionToolDialog").addEventListener("click", event=>{if(event.target===event.currentTarget){const rect=event.currentTarget.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)closeAuctionTool();}});
     installEvents();
+    if (new URLSearchParams(window.location.search).get('mode') === 'history') {
+      listingType = 'past';
+      byId('auctionTypeButton').innerHTML = 'Auction history <span>⌄</span>';
+    }
+    resetAuctionSortDefaults();
     renderAll();
     restoreServerReminders();
     setInterval(refreshLocalDatabase,30000);

@@ -1,28 +1,33 @@
 {
-  "createdAt": 1793007285.4878347,
+  "createdAt": 1793026589.9611356,
   "databases": {
     "bazar_atlas": {
-      "bytes": 80965394,
-      "uncompressedBytes": 367017984,
-      "sha256": "fcb87f5065502c138671b4c42add5e3166678f5560483361f43ebef1f2e814c1",
+      "bytes": 108066473,
+      "uncompressedBytes": 487239680,
+      "sha256": "550bc30612f34f41b107624eac2cfa4ae24985608b936f5434e38b88e7ce6997",
       "format": "concatenated-gzip-parts",
       "parts": [
         {
           "file": "bazar_atlas.sqlite3.gz.part001",
           "bytes": 47185920,
-          "sha256": "86954f4364e323f0dd8c12f70c03904e6d93c4b9189664c7a51864e0a78dc82b"
+          "sha256": "838f8704204130d3f2741102cfdbe804e48bb0d39cd8592fb8c436d539b68404"
         },
         {
           "file": "bazar_atlas.sqlite3.gz.part002",
-          "bytes": 33779474,
-          "sha256": "27d52f7c4045481e7973fb95a3887b3c1a811c384207bdb8be686438a401b0e9"
+          "bytes": 47185920,
+          "sha256": "930da073d1b6793e953e0bfca5520fcd40fdac0a6672b5da097bc1e6df225830"
+        },
+        {
+          "file": "bazar_atlas.sqlite3.gz.part003",
+          "bytes": 13694633,
+          "sha256": "a02aca580aa65ca3dc7516e1d69b983f80df907fa6927280d89b85411cfc7643"
         }
       ]
     },
     "daily_history": {
-      "bytes": 219207,
-      "uncompressedBytes": 1110016,
-      "sha256": "70745e90209bcbe42144b576335702d8198752e73ff61dbee6ae79423211ad19",
+      "bytes": 283037,
+      "uncompressedBytes": 1433600,
+      "sha256": "97a1fec61d8def0f24c751b29533f4add3b2bc86f008bd829467af6d9af7802c",
       "file": "daily_history.sqlite3.gz"
     }
   }

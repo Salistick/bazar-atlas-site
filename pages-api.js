@@ -4,8 +4,11 @@
   const nativeFetch=window.fetch.bind(window);
   const base=new URL('./',document.baseURI);
   const buildId=window.BAZAAR_BUILD_ID || '';
+  const presenceURL='https://raw.githubusercontent.com/Salistick/bazar-atlas-site/refs/heads/codex/active-data/active.json';
+  let liveRevision='';
   const versioned=url=>{
     if(buildId) url.searchParams.set('v',buildId);
+    if(liveRevision&&url.pathname.includes('/site-data/'))url.searchParams.set('live',liveRevision);
     return url;
   };
   const cache=new Map();
@@ -35,6 +38,67 @@
   const active=card=>Number.isFinite(deadline(card.end))&&deadline(card.end)>Date.now();
   const validHistory=card=>expired(card)&&(!card.snapshot?.auction?.end||deadline(card.snapshot.auction.end)===deadline(card.end));
   const newestFirst=(a,b)=>deadline(b.end)-deadline(a.end)||Number(b.id)-Number(a.id);
+  const presenceState={checkedAt:-Infinity,value:null,request:null};
+  function validatePresence(value){
+    const now=Date.now()/1000;
+    if(value?.version!==1||value.source!=='official_current_catalog'||
+       !Number.isFinite(value.verifiedAt)||value.verifiedAt>now||now-value.verifiedAt>7200||
+       !Number.isFinite(value.updatedAt)||value.updatedAt>now||value.updatedAt<value.verifiedAt||
+       !/^[a-f0-9]{40}$/.test(value.baseRevision||'')||
+       !Array.isArray(value.auctions)||!value.auctions.length||value.auctions.length>100000)return null;
+    const cards=new Map();
+    for(const card of value.auctions){
+      const id=String(card?.id||''),end=deadline(card?.end);
+      if(!/^[1-9]\d*$/.test(id)||cards.has(id)||!Number.isFinite(end)||end<=value.verifiedAt*1000||
+         !['currentBid','minimumBid'].every(key=>typeof card[key]==='string'&&/^(?:\d[\d,]*)?$/.test(card[key])))return null;
+      cards.set(id,{id,end:card.end,currentBid:card.currentBid,minimumBid:card.minimumBid});
+    }
+    return {...value,cards};
+  }
+  async function activePresence(){
+    if(presenceState.request)return presenceState.request;
+    if(Date.now()-presenceState.checkedAt<60000){
+      const value=presenceState.value,age=value?Date.now()/1000-value.verifiedAt:Infinity;
+      return age>=0&&age<=7200?value:null;
+    }
+    presenceState.request=(async()=>{
+      try{
+        const url=new URL(presenceURL);
+        url.searchParams.set('check',String(Math.floor(Date.now()/60000)));
+        const options={cache:'no-store'};
+        if(typeof AbortSignal!=='undefined'&&AbortSignal.timeout)options.signal=AbortSignal.timeout(3000);
+        const response=await nativeFetch(url,options);
+        if(!response.ok)throw new Error('Active presence unavailable');
+        const body=await response.text();
+        if(body.length>5000000)throw new Error('Active presence exceeds size limit');
+        const value=validatePresence(JSON.parse(body));
+        if(!value)throw new Error('Active presence did not pass validation');
+        if(value.baseRevision!==liveRevision){
+          liveRevision=value.baseRevision;
+          cache.clear();
+        }
+        presenceState.value=value;
+      }catch(error){
+        // Keep previously verified removals through a transient raw-file outage;
+        // an unavailable source is neither evidence of removal nor reinstatement.
+        const previous=presenceState.value,age=previous?Date.now()/1000-previous.verifiedAt:Infinity;
+        if(age<0||age>7200)presenceState.value=null;
+      }finally{
+        presenceState.checkedAt=Date.now();
+        presenceState.request=null;
+      }
+      return presenceState.value;
+    })();
+    return presenceState.request;
+  }
+  function presenceCard(card,presence){
+    if(!presence)return card;
+    const current=presence.cards.get(String(card.id));
+    if(!current||deadline(current.end)!==deadline(card.end))return null;
+    return {...card,...current,snapshot:card.snapshot?{...card.snapshot,
+      auction:{...card.snapshot.auction,end:current.end,currentBid:current.currentBid,minimumBid:current.minimumBid},
+      displayCard:{...card.snapshot.displayCard,...current}}:card.snapshot};
+  }
   const pendingResult={resultStatus:'pending',paymentConfirmed:false,finalBid:null,
     sourceStatus:'',sold:false,cancelled:false,finished:false,finalResultPending:true};
   function historicalSnapshot(snapshot){
@@ -45,19 +109,25 @@
     return {...card,...pendingResult,type:'past',market:'past',
       snapshot:card.snapshot?historicalSnapshot(card.snapshot):card.snapshot};
   }
-  async function projectedCoverage(){
+  async function projectedCoverage(presence=undefined){
+    if(presence===undefined)presence=await activePresence();
     const [source,lookup]=await Promise.all([data('coverage'),data('lookup')]);
-    const activeCards=lookup.filter(card=>card.type==='current'&&active(card));
+    const activeCards=lookup.filter(card=>card.type==='current').map(card=>presenceCard(card,presence)).filter(card=>card&&active(card));
     const history=new Set(lookup.filter(card=>card.type==='past'&&expired(card)).map(card=>String(card.id)));
     for(const card of lookup)if(card.type==='current'&&expired(card)&&card.snapshotComplete===true)history.add(String(card.id));
     const upcoming=activeCards.map(card=>deadline(card.end));
     return {...source,active:activeCards.length,downloaded:activeCards.filter(card=>card.snapshotComplete===true).length,history:history.size,
+      activeVerificationAt:presence?.verifiedAt||null,
+      activePresenceRevision:presence?presence.baseRevision+':'+presence.updatedAt:null,
+      activePresenceSource:presence?'official_current_catalog':'published_snapshot',
+      verifiedOfficialTotal:presence?[...presence.cards.values()].filter(active).length:source.verifiedOfficialTotal,
       nextExpiryAt:upcoming.length?Math.min(...upcoming):null};
   }
   async function projectedIndex(kind){
-    const [index,current,coverage]=await Promise.all([data('index-'+kind),data('index-current'),projectedCoverage()]);
+    const presence=await activePresence();
+    const [index,current,coverage]=await Promise.all([data('index-'+kind),data('index-current'),projectedCoverage(presence)]);
     let auctions;
-    if(kind==='current')auctions=current.auctions.filter(active);
+    if(kind==='current')auctions=current.auctions.map(card=>presenceCard(card,presence)).filter(card=>card&&active(card));
     else{
       const merged=new Map(index.auctions.filter(validHistory).map(card=>[String(card.id),card]));
       for(const card of current.auctions){
@@ -69,10 +139,16 @@
       worlds:[...new Set(auctions.map(card=>card.world).filter(Boolean))].sort()};
   }
   async function detail(id){
+    const presence=await activePresence();
     const [result,lookup]=await Promise.all([data('details/'+id),data('lookup')]);
     const card=lookup.find(item=>String(item.id)===String(id)&&item.type==='past') ||
       lookup.find(item=>String(item.id)===String(id));
     if(card?.type==='past'&&!validHistory({...card,snapshot:result.snapshot}))throw new Error('A data de encerramento deste histórico não passou na validação.');
+    if(card?.type==='current'&&active(card)&&presence){
+      const verified=presenceCard({...card,snapshot:result.snapshot},presence);
+      if(!verified)throw new Error('Este leilão já não consta no catálogo ativo verificado.');
+      return {...result,snapshot:verified.snapshot};
+    }
     return card?.type==='current'&&card.snapshotComplete===true&&expired(card)
       ? {...result,snapshot:historicalSnapshot(result.snapshot)} : result;
   }
@@ -112,10 +188,13 @@
       if(action==='recent') return json({auctions:[]});
       if(action==='reminders') return json({reminders:{},mode:'browser'});
       if(action==='live-bid') {
+        const presence=await activePresence();
         const card=(await data('lookup')).find(c=>String(c.id)===id);
-        return json({active:!!card && deadline(card.end)>Date.now(),currentBid:card?.currentBid || '',source:'published'});
+        const verified=card?presenceCard(card,presence):presence?.cards.get(id);
+        return json({active:!!verified&&active(verified),currentBid:verified?.currentBid||'',source:presence?'official_current_catalog':'published'});
       }
       if(action==='search') {
+        await activePresence();
         const body=JSON.parse(options.body || '{}');
         const card=(await data('lookup')).find(c=>String(c.name).toLowerCase()===String(body.name).trim().toLowerCase());
         return card?json(await detail(card.id)):json({error:'Personagem ausente da base publicada.'},404);

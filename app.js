@@ -1055,7 +1055,7 @@
     try{
       const response=await fetch('/api/bazaar/index-status');if(!response.ok)return;
       const coverage=await response.json();showDatabaseCoverage(coverage);
-      const revision=JSON.stringify([coverage.active,coverage.history,coverage.downloaded,coverage.confirmedSales,coverage.lastListingSync,coverage.lastSnapshotSync]);
+      const revision=JSON.stringify([coverage.active,coverage.history,coverage.downloaded,coverage.confirmedSales,coverage.lastListingSync,coverage.lastSnapshotSync,coverage.activeVerificationAt,coverage.activePresenceRevision]);
       if(revision===localCoverageRevision)return;
       // Keep the displayed page stable while the background collectors work.
       // The next user navigation/filter action reads the refreshed local index.

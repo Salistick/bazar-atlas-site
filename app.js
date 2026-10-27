@@ -2307,7 +2307,6 @@
     refreshGemFilterOptions();
   }
   function refreshGemFilterOptions(changedId='') {
-    const professions=filterGroupValues('filterVocation');
     let selected=filterSelectedValues('filterGems');
     const options=catalogFilterOptions('gems');
     if(changedId==='filterGems'){
@@ -2318,7 +2317,7 @@
     const chosen=filterGroupValues('filterVocation');
     if(chosen.includes('1') && changedId==='filterVocation')selected=[];
     else if(changedId==='filterVocation' && chosen.length>1)selected=selected.filter(value=>options.find(option=>option.value===value)?.shared);
-    const available=options.filter(option=>option.shared || (!chosen.includes('1') && (!chosen.length || (option.professions || [option.profession]).some(value=>chosen.includes(value)))));
+    const available=options.filter(option=>option.shared || !chosen.length || (option.professions || [option.profession]).some(value=>chosen.includes(value)));
     selected=selected.filter(value=>available.some(option=>option.value===value));
     setReferenceOptions('filterGems',available);setFilterSelected('filterGems',selected);
     previousGemSelection=selected;

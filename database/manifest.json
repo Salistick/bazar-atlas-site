@@ -1,33 +1,33 @@
 {
-  "createdAt": 1793055181.985182,
+  "createdAt": 1793066971.4456394,
   "databases": {
     "bazar_atlas": {
-      "bytes": 117499457,
-      "uncompressedBytes": 529629184,
-      "sha256": "953ce48d5e5f466fe80c07afc2666d73984c1476969ea181775f04854d5d7207",
+      "bytes": 126773588,
+      "uncompressedBytes": 571277312,
+      "sha256": "261403c8628c8ef20cff25bd4695ab7672af909d9df35727834b62b1fbecbca1",
       "format": "concatenated-gzip-parts",
       "parts": [
         {
           "file": "bazar_atlas.sqlite3.gz.part001",
           "bytes": 47185920,
-          "sha256": "d546e7b2ad74a1c1759c759f2c29f216a2dad3330bebfd67dc603322e71253b5"
+          "sha256": "321707b6dc1a177dd747e0451c178205032a4ec6403ad3f29d958150d83fa782"
         },
         {
           "file": "bazar_atlas.sqlite3.gz.part002",
           "bytes": 47185920,
-          "sha256": "0d745fa78fc7e0249578a26c7237704eecc460b0b69ef8648bab1f72acad985d"
+          "sha256": "ca4b3ab53491bd53bdbbd503eb05a858b53b9bf22345a1d11a33bbea7a77b4e7"
         },
         {
           "file": "bazar_atlas.sqlite3.gz.part003",
-          "bytes": 23127617,
-          "sha256": "43d3dbf3a376370f7fce21bbec27a497f69f17146896c54f46e7abd84e72918a"
+          "bytes": 32401748,
+          "sha256": "222551ab4c700600d2d828d401df026f84270cbb7511ce0c6125b308835eb346"
         }
       ]
     },
     "daily_history": {
-      "bytes": 318273,
-      "uncompressedBytes": 1609728,
-      "sha256": "c24395b5c9bf2caf430a7d7f0f25ea2a271ec213b4fc357271baf403da67071b",
+      "bytes": 343051,
+      "uncompressedBytes": 1740800,
+      "sha256": "3c7985df8e3ae9732bc5028ddea4f79b1744dc0a8cf1bb998c4bf20cd5c61ae2",
       "file": "daily_history.sqlite3.gz"
     }
   }

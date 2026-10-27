@@ -2368,10 +2368,32 @@
     if(activeView==='overview')byId('globalSearch').value=byId('filterNickname').value;
     syncBulkFilterCheckboxes();
     const tags=[],groups=new Set();
-    const add=(label,target,value='',image='',group=target)=>{
-      groups.add(group);tags.push('<button class="active-auction-filter" data-remove-filter="'+escapeHtml(target)+'" data-remove-value="'+escapeHtml(value)+'">'+
-        (image?'<img src="https://assets.service-exevopan.com/public/assets/'+image+'.png" alt="">':'')+escapeHtml(label)+'<span aria-hidden="true">×</span></button>');
+    const add=(label,target,value='',icon='',group=target,number='')=>{
+      const image=icon && /^[a-zA-Z0-9-]+$/.test(icon);
+      const graphic=!icon?'':image?'<img class="active-filter-icon'+(icon==='tibiacoin'?' active-filter-coin':'')+'" src="https://assets.service-exevopan.com/public/assets/'+icon+'.png" alt="" aria-hidden="true">':
+        '<span class="active-filter-icon active-filter-emoji" aria-hidden="true">'+escapeHtml(icon)+'</span>';
+      const start=number?label.indexOf(number):-1;
+      const text=start<0?escapeHtml(label):escapeHtml(label.slice(0,start))+'<strong>'+escapeHtml(number)+'</strong>'+escapeHtml(label.slice(start+number.length));
+      groups.add(group);tags.push('<button type="button" class="active-auction-filter" aria-label="'+escapeHtml('Remove '+label)+'" data-remove-filter="'+escapeHtml(target)+'" data-remove-value="'+escapeHtml(value)+'">'+
+        graphic+'<span class="active-filter-label">'+text+'</span><span class="active-filter-remove" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span></button>');
     };
+    const format=value=>Number(value).toLocaleString('en-US');
+    const addRange=(key,minId,maxId,label,icon)=>{
+      const minimum=filterNumber(minId,FILTER_DEFAULTS[minId]),maximum=filterNumber(maxId,FILTER_DEFAULTS[maxId]);
+      const minChanged=minimum!==FILTER_DEFAULTS[minId],maxChanged=maximum!==FILTER_DEFAULTS[maxId];
+      if(!minChanged && !maxChanged)return;
+      const number=minChanged&&maxChanged?format(minimum)+'~'+format(maximum):format(minChanged?minimum:maximum);
+      add((minChanged&&maxChanged?label:(minChanged?'Min ':'Max ')+label.toLowerCase())+': '+number,'range:'+key,'',icon,'range:'+key,number);
+    };
+    const addSelected=(id,icon)=>{
+      const select=byId(id);if(!select || (id==='filterRareItems' && listingType==='past'))return;
+      const selected=filterSelectedValues(id);if(!selected.length)return;
+      if((id==='filterImbuements' && byId('filterAllImbuements').checked) || (id==='filterRareItems' && byId('filterAllItems').checked)){
+        add(id==='filterImbuements'?'All imbuements':'All items',id,'*',icon,id);return;
+      }
+      for(const value of selected){const option=[...select.options].find(option=>option.value===value);add(option?.textContent || value,id,value,icon,id);}
+    };
+    if(byId('filterBidded').checked)add('Bidded only','filterBidded','','☑');
     const nickname=byId('filterNickname').value.trim();if(nickname)add('Search nickname: '+nickname,'filterNickname');
     for(const [id,options] of Object.entries(FILTER_GROUPS)){
       const selected=filterGroupValues(id);
@@ -2380,26 +2402,39 @@
         if(selected.includes(value))add(label,id,value,image,id);
       }
     }
-    for(const [id,[,label]] of Object.entries(FILTER_MULTI)){
-      if(id==='filterRareItems' && listingType==='past')continue;
-      const selected=filterSelectedValues(id),select=byId(id);if(!selected.length || !select)continue;
-      if((id==='filterImbuements' && byId('filterAllImbuements').checked) || (id==='filterRareItems' && byId('filterAllItems').checked)){
-        add(id==='filterImbuements'?'All Imbuements':'All items',id,'*','',id);continue;
-      }
-      for(const value of selected){const option=[...select.options].find(option=>option.value===value);add((id==='filterWorld'?'':label+': ')+(option?.textContent || value),id,value,'',id);}
+    addSelected('filterWorld','');
+    const stores=[['Training Dummy','Training dummy','🗿'],['Gold Pouch','Gold pouch','💰'],['Hirelings','Hirelings','💁'],['Regular World Transfer','Regular world transfer','🌎'],
+      ['Charm Expansion','Charm Expansion','🧙‍♂️'],['Prey Slot','Prey Slot','🎯'],['Weekly Task Expansion','Weekly Task Expansion','🏹'],
+      ['Imbuement Shrine','Imbuement Shrine','⛲'],['Reward Shrine','Reward Shrine','⛲'],['Mailbox','Mailbox','📬']];
+    const selectedStores=new Set($$('[data-store-filter]:checked').map(input=>input.dataset.storeFilter));
+    for(const [value,label,icon] of stores)if(selectedStores.has(value))add(label,'store:'+value,'',icon);
+    addRange('level','filterLevelMin','filterLevelMax','Level','📏');
+    const skills=$$('[data-skill-choice]:checked'),minSkill=filterNumber('filterSkillMin',10),maxSkill=filterNumber('filterSkillMax',150);
+    const skillRangeChanged=minSkill!==10 || maxSkill!==150;
+    if(skillRangeChanged)groups.add('range:skill');
+    for(const input of skills){
+      const key=FILTER_SKILL_KEYS[input.dataset.skillChoice],label=key[0].toUpperCase()+key.slice(1);
+      const number=skillRangeChanged?format(minSkill)+(maxSkill!==150?'~'+format(maxSkill):''):'';
+      add(label+(number?': '+number:''),'skill:'+input.dataset.skillChoice,'',key==='shielding'?'shield':key,'skills',number);
     }
-    for(const [key,minId,maxId,label] of FILTER_RANGES){
-      const minimum=filterNumber(minId,FILTER_DEFAULTS[minId]),maximum=filterNumber(maxId,FILTER_DEFAULTS[maxId]);
-      if(minimum!==FILTER_DEFAULTS[minId] || maximum!==FILTER_DEFAULTS[maxId])add(label+': '+minimum.toLocaleString('en-US')+' – '+maximum.toLocaleString('en-US'),'range:'+key,'','','range:'+key);
+    if(!skills.length)addRange('skill','filterSkillMin','filterSkillMax','Skill','📏');
+    for(const [section] of Object.entries(FILTER_COSMETIC_KEYS))for(const input of $$('[data-cosmetic-choice="'+section+'"]:checked'))add(input.value,'choice:'+section,input.value,section.includes('Outfit')?'👕':'🐴',section);
+    for(const [id,label,icon] of [['filterBossPoints','Boss points','👺'],['filterBountyPoints','Bounty points','🎯'],['filterTcInvested','invested','tibiacoin']]){
+      const value=filterNumber(id);if(value>0)add(format(value)+' '+label,id,'',icon,id,format(value));
     }
-    for(const [id,label] of [['filterBossPoints','Boss points'],['filterBountyPoints','Bounty points'],['filterTcInvested','Tibia Coins invested'],['filterAchievements','Achievement points'],['filterGreaterGems','Min Greater Gems']]){
-      if(filterNumber(id)>0)add(label+': '+filterNumber(id).toLocaleString('en-US'),id);
-    }
-    if(byId('filterBidded').checked)add('Bidded only','filterBidded');
-    for(const input of $$('[data-skill-choice]:checked'))add(input.closest('label')?.textContent.trim() || FILTER_SKILL_KEYS[input.dataset.skillChoice],'skill:'+input.dataset.skillChoice,'','','skills');
-    for(const [section] of Object.entries(FILTER_COSMETIC_KEYS))for(const input of $$('[data-cosmetic-choice="'+section+'"]:checked'))add(input.value,'choice:'+section,input.value,'',section);
-    for(const input of $$('[data-store-filter]:checked'))add(input.dataset.storeFilter,'store:'+input.dataset.storeFilter);
-    for(const input of $$('[data-misc-filter]:checked'))add(input.dataset.miscFilter,'misc:'+input.dataset.miscFilter,'','',input.dataset.miscFilter==='Rare nicknames'?'rareNick':'tags');
+    addSelected('filterImbuements','🪄');
+    addRange('charm','filterCharmMin','filterCharmMax','Charm points','🪄');
+    addSelected('filterGems','💎');
+    if(filterNumber('filterGreaterGems')>0)add(format(filterNumber('filterGreaterGems'))+' Greater Gems','filterGreaterGems','','💎');
+    addSelected('filterQuest','📖');
+    if(filterNumber('filterAchievements')>0)add(format(filterNumber('filterAchievements'))+' Achievement points','filterAchievements','','⭐');
+    addSelected('filterRareAchievements','⭐');
+    addSelected('filterRareItems','📦');
+    const tagLabels={'Soul War available':'Soul War available 💀','Primal Ordeal available':'Primal Ordeal available 🦖','Many charms':'Many charms','Many quests':'Many quests',
+      'Many mounts':'Many mounts','Many store cosmetics':'Many store cosmetics 🛍️','Secondary skill':'Secondary skill ⚔️','Rare outfits':'Rare outfits 💎','Rare mounts':'Rare mounts ✨'};
+    const selectedTags=new Set($$('[data-misc-filter]:checked').map(input=>input.dataset.miscFilter));
+    for(const [value,label] of Object.entries(tagLabels))if(selectedTags.has(value))add(label,'misc:'+value,'','','tags');
+    if(selectedTags.has('Rare nicknames'))add('Rare nickname','misc:Rare nicknames','','','rareNick');
     for(const input of $$('[data-cosmetic-filter]'))if(input.value.trim())add(input.value.trim(),'legacy:'+input.dataset.cosmeticFilter,'','','legacy:'+input.dataset.cosmeticFilter);
     document.querySelectorAll('[data-cosmetic-count]').forEach(badge=>{const count=$$('[data-cosmetic-choice="'+badge.dataset.cosmeticCount+'"]:checked').length;badge.textContent=String(count);badge.hidden=count===0;});
     byId('activeAuctionFilters').innerHTML=tags.join('');
@@ -2424,7 +2459,8 @@
   function removeReferenceFilter(target,value=''){
     if(target.startsWith('range:')){const row=FILTER_RANGES.find(range=>range[0]===target.slice(6));if(row)for(const id of row.slice(1,3))byId(id).value=String(FILTER_DEFAULTS[id]);}
     else if(target.startsWith('choice:'))$$('[data-cosmetic-choice="'+target.slice(7)+'"]').forEach(input=>{if(input.value===value)input.checked=false;});
-    else if(target.startsWith('skill:')){const input=document.querySelector('[data-skill-choice="'+target.slice(6)+'"]');if(input)input.checked=false;}
+    else if(target.startsWith('skill:')){const input=document.querySelector('[data-skill-choice="'+target.slice(6)+'"]');if(input)input.checked=false;
+      if(!$$('[data-skill-choice]:checked').length){byId('filterSkillMin').value=String(FILTER_DEFAULTS.filterSkillMin);byId('filterSkillMax').value=String(FILTER_DEFAULTS.filterSkillMax);}}
     else if(target.startsWith('store:') || target.startsWith('misc:')){const colon=target.indexOf(':'),kind=target.slice(0,colon),name=target.slice(colon+1);for(const input of $$('[data-'+kind+'-filter]'))if(input.dataset[kind+'Filter']===name)input.checked=false;}
     else if(target.startsWith('legacy:')){const input=document.querySelector('[data-cosmetic-filter="'+target.slice(7)+'"]');if(input)input.value='';}
     else if(byId(target)?.tagName==='SELECT')setFilterSelected(target,value==='*'?[]:filterSelectedValues(target).filter(selected=>selected!==value));

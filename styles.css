@@ -1013,7 +1013,7 @@ body { background: #202225; color: #fff; }
 .filter-scroll-content .filter-check-grid { grid-template-columns: repeat(3, 1fr); gap: 8px 12px; }
 .reference-filter-pills { display: flex; flex-wrap: wrap; gap: 8px; }
 .reference-filter-pills label { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; background: #664b80; color: white; cursor: pointer; font: 12px BazaarRoboto, Roboto, sans-serif; }
-.reference-filter-pills img, .active-auction-filter img { width: 16px; height: 14px; object-fit: contain; }
+.reference-filter-pills img, .active-auction-filter img { display: block; width: auto; height: auto; max-width: none; max-height: none; flex: 0 0 auto; object-fit: contain; image-rendering: pixelated; }
 .reference-filter-pills input { position: absolute; opacity: 0; width: 1px; }
 .reference-filter-pills label:has(input:checked) { background: #8b63e3; }
 .reference-filter-pills label:has(input:focus-visible) { outline: 2px solid white; }
@@ -1022,10 +1022,18 @@ body { background: #202225; color: #fff; }
 #filterBackdrop { position: fixed; inset: 0; z-index: 90; background: #0008; border: 0; }
 #filterBackdrop[hidden] { display: none; }
 body.filters-open { overflow: hidden; }
-.listing-type-row { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 12px; }
-#activeAuctionFilters { display: flex; flex-wrap: wrap; gap: 8px; }
-.active-auction-filter { display: inline-flex; align-items: center; gap: 6px; background: #664b80; color: white; border: 0; border-radius: 8px; padding: 6px 12px; font: 12px BazaarRoboto, Roboto, sans-serif; cursor: pointer; }
-.active-auction-filter > span { display: grid; place-items: center; border: 1px solid #c69be9; width: 16px; height: 16px; border-radius: 50%; }
+.listing-type-row { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
+.listing-type-row:has(.active-auction-filter) > .auction-type-wrap { margin-right: 4px; }
+/* Let every selected chip wrap alongside the mode button, including later rows. */
+#activeAuctionFilters { display: contents; }
+.active-auction-filter { display: inline-flex; align-items: center; flex: 0 1 auto; gap: 6px; min-height: 28px; max-width: 100%; background: #664b80; color: white; border: 0; border-radius: 8px; padding: 6px 12px; font: 12px/16px BazaarRoboto, Roboto, sans-serif; text-align: left; cursor: pointer; }
+.active-filter-label { min-width: 0; overflow-wrap: anywhere; }
+.active-filter-icon { flex: 0 0 auto; }
+.active-filter-emoji { font-size: 12px; line-height: 16px; }
+.active-auction-filter img.active-filter-coin { width: 12px; height: 12px; }
+.active-filter-remove { display: grid; place-items: center; flex: 0 0 16px; width: 16px; height: 16px; border-radius: 50%; background: #8b63e3; color: white; font: 12px/16px Arial, sans-serif; opacity: .75; }
+.active-auction-filter:hover .active-filter-remove { opacity: 1; }
+.active-auction-filter:focus-visible { outline: 2px solid #c69be9; outline-offset: 2px; }
 .listing-controls { clip-path: none; box-shadow: none; isolation: isolate; }
 .listing-controls::before { content: ''; position: absolute; left: calc((100% - 100vw)/2); top: 0; height: 100%; width: 100vw; background: #36393f; z-index: -1; box-shadow: 0 2px 3px #0004; }
 .auction-context-menu { width: max-content; min-width: 134px; z-index: 80; }
@@ -1161,7 +1169,8 @@ body.filters-open { overflow: hidden; }
 .filter-scroll-content .skill-filter-choices, .filter-scroll-content .filter-misc-section .filter-check-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .skill-filter-choices { margin-top: 16px; padding-top: 0; border-top: 0; }
 .skill-filter-choices .filter-check { padding-block: 5px; }
-.skill-filter-choices label > img { width: 16px; height: 16px; object-fit: contain; }
+.skill-filter-choices label > img, .skill-filter-choices label > span[aria-hidden="true"] > img { display: block; width: auto; height: auto; max-width: none; max-height: none; flex: 0 0 auto; object-fit: contain; image-rendering: pixelated; }
+.skill-filter-choices label > span[aria-hidden="true"] { display: inline-flex; width: auto; height: auto; align-items: center; }
 .filter-scroll-content .filter-accordion summary { padding: 0; min-height: 28px; }
 .filter-scroll-content .filter-accordion summary::after { font-size: 20px; color: #d9dadd; }
 .filter-drawer-actions { min-height: 60px; padding-top: 12px; padding-bottom: 12px; display: flex; align-items: center; font: 300 14px/20px BazaarRoboto,Roboto,sans-serif; }
@@ -1185,7 +1194,7 @@ body.filters-open { overflow: hidden; }
 .filter-combobox-option { display: flex; gap: 8px; align-items: center; min-height: 32px; padding: 8px 12px; cursor: pointer; overflow-wrap: anywhere; }
 .filter-combobox-option.is-highlighted, .filter-combobox-option:hover { background: #664b80; }
 .filter-combobox-option[aria-disabled="true"] { opacity: .45; cursor: default; }
-.filter-combobox-option img { width: 16px; height: 16px; object-fit: contain; }
+.filter-combobox-option img { width: auto; height: auto; max-width: none; max-height: none; flex: 0 0 auto; object-fit: contain; image-rendering: pixelated; }
 .filter-combobox-empty { padding: 9px 12px; color: #b9bbbe; font-style: italic; }
 .filter-selected-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; width: max-content; max-width: min(530px,calc(90vw - 80px)); }
 .filter-selection-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 26px; max-width: 100%; padding: 5px 10px; border: 0; border-radius: 8px; background: #664b80; color: white; cursor: pointer; font: 12px/16px BazaarRoboto,Roboto,sans-serif; }
